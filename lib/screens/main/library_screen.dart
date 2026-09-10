@@ -305,7 +305,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
             context,
             AllSongsScreen(
               title: 'Zuletzt hinzugefügt',
-              songs: libraryProvider.cachedAllSongs, // vorerst gleiche Liste, wird noch ersetzt werden
+              songs: libraryProvider.cachedAllSongs,
+              sortByRecentlyAdded: true,
             ),
           ),
         ),
