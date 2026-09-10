@@ -287,7 +287,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
           type: _LibraryItemType.allSongs,
           title: 'Alle Titel',
           subtitle: '${libraryProvider.cachedAllSongs.length} Songs',
-          onTap: () {},
+          onTap: () => _navigate(
+            context,
+            AllSongsScreen(
+              title: 'Alle Titel',
+              songs: libraryProvider.cachedAllSongs,
+            ),
+          ),
         ),
       );
       items.add(
@@ -295,7 +301,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
           type: _LibraryItemType.recentlyAdded,
           title: 'Zuletzt hinzugefügt',
           subtitle: 'Neueste Songs',
-          onTap: () {},
+          onTap: () => _navigate(
+            context,
+            AllSongsScreen(
+              title: 'Zuletzt hinzugefügt',
+              songs: libraryProvider.cachedAllSongs, // vorerst gleiche Liste, wird noch ersetzt werden
+            ),
+          ),
         ),
       );
     }
