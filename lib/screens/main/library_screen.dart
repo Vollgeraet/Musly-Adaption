@@ -8,6 +8,7 @@ import 'package:musly/theme/app_theme.dart';
 import 'package:musly/widgets/common/album_artwork.dart';
 import 'package:musly/utils/navigation_helper.dart';
 import 'package:musly/screens/detail/album_screen.dart';
+import 'package:musly/screens/media/all_songs_screen.dart'; //NEU
 import 'package:musly/screens/detail/playlist_screen.dart';
 import 'package:musly/screens/media/favorites_screen.dart';
 import 'package:musly/screens/media/album_collection_screen.dart';
