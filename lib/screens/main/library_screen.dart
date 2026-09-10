@@ -279,7 +279,26 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }) {
     final items = <_LibraryItem>[];
     final offlineService = OfflineService();
-
+//NEU
+    if (_selectedFilter == null || _selectedFilter == 'Playlists') {
+      items.add(
+        _LibraryItem(
+          type: _LibraryItemType.allSongs,
+          title: 'Alle Titel',
+          subtitle: '${libraryProvider.cachedAllSongs.length} Songs',
+          onTap: () {},
+        ),
+      );
+      items.add(
+        _LibraryItem(
+          type: _LibraryItemType.recentlyAdded,
+          title: 'Zuletzt hinzugefügt',
+          subtitle: 'Neueste Songs',
+          onTap: () {},
+        ),
+      );
+    }
+//ENDE NEU
     if (_selectedFilter == null || _selectedFilter == 'Playlists') {
       items.add(
         _LibraryItem(
@@ -786,6 +805,25 @@ class _LibraryScreenState extends State<LibraryScreen> {
     bool isDark,
   ) {
     switch (item.type) {
+//NEU
+      case _LibraryItemType.allSongs:
+        return _buildPinnedItemTile(
+          title: item.title,
+          subtitle: item.subtitle,
+          gradientColors: const [Color(0xFF1DB954), Color(0xFF1ED760)],
+          icon: CupertinoIcons.music_note_list,
+          onTap: item.onTap,
+        );
+
+      case _LibraryItemType.recentlyAdded:
+        return _buildPinnedItemTile(
+          title: item.title,
+          subtitle: item.subtitle,
+          gradientColors: const [Color(0xFFFF6B6B), Color(0xFFFFA36B)],
+          icon: CupertinoIcons.clock_fill,
+          onTap: item.onTap,
+        );
+  //NEU ENDE
       case _LibraryItemType.likedSongs:
         return _buildPinnedItemTile(
           title: item.title,
@@ -984,6 +1022,47 @@ class _LibraryScreenState extends State<LibraryScreen> {
     bool isDark,
   ) {
     switch (item.type) {
+//NEU
+      case _LibraryItemType.allSongs:
+        return _buildGridItemCard(
+          title: item.title,
+          subtitle: item.subtitle,
+          customArtwork: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF1DB954), Color(0xFF1ED760)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.all(Radius.circular(8)),
+            ),
+            child: const Center(
+              child: Icon(CupertinoIcons.music_note_list, color: Colors.white, size: 36),
+            ),
+          ),
+          onTap: item.onTap,
+        );
+
+      case _LibraryItemType.recentlyAdded:
+        return _buildGridItemCard(
+          title: item.title,
+          subtitle: item.subtitle,
+          customArtwork: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFFFF6B6B), Color(0xFFFFA36B)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.all(Radius.circular(8)),
+            ),
+            child: const Center(
+              child: Icon(CupertinoIcons.clock_fill, color: Colors.white, size: 36),
+            ),
+          ),
+          onTap: item.onTap,
+        );
+  //NEU ENDE
       case _LibraryItemType.likedSongs:
         return _buildGridItemCard(
           title: item.title,
