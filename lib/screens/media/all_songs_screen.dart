@@ -1,33 +1,42 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
-import 'package:provider/provider.dart';
-import '../../models/models.dart';
-import '../../providers/player_provider.dart';
-import '../../widgets/widgets.dart';
-
 class AllSongsScreen extends StatelessWidget {
   final String title;
   final List<Song> songs;
+  final bool sortByRecentlyAdded;
 
   const AllSongsScreen({
     super.key,
     required this.title,
     required this.songs,
+    this.sortByRecentlyAdded = false,
   });
 
+  List<Song> get _displaySongs {
+    if (!sortByRecentlyAdded) return songs;
+    final sorted = List<Song>.from(songs);
+    sorted.sort((a, b) {
+      if (a.created == null && b.created == null) return 0;
+      if (a.created == null) return 1;
+      if (b.created == null) return -1;
+      return b.created!.compareTo(a.created!); // neueste zuerst
+    });
+    return sorted;
+  }
+
   void _playAll(BuildContext context, {bool shuffle = false}) {
-    if (songs.isEmpty) return;
+    final list = _displaySongs;
+    if (list.isEmpty) return;
     final player = Provider.of<PlayerProvider>(context, listen: false);
-    final list = List<Song>.from(songs);
-    if (shuffle) list.shuffle();
-    player.playSong(list.first, playlist: list, startIndex: 0);
+    final playlist = List<Song>.from(list);
+    if (shuffle) playlist.shuffle();
+    player.playSong(playlist.first, playlist: playlist, startIndex: 0);
   }
 
   @override
   Widget build(BuildContext context) {
+    final displaySongs = _displaySongs;
     return Scaffold(
       appBar: AppBar(title: Text(title)),
-      body: songs.isEmpty
+      body: displaySongs.isEmpty
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -41,7 +50,7 @@ class AllSongsScreen extends StatelessWidget {
             )
           : ListView.builder(
               padding: const EdgeInsets.only(bottom: 150),
-              itemCount: songs.length + 1,
+              itemCount: displaySongs.length + 1,
               itemBuilder: (context, index) {
                 if (index == 0) {
                   return Padding(
@@ -75,10 +84,10 @@ class AllSongsScreen extends StatelessWidget {
                     ),
                   );
                 }
-                final song = songs[index - 1];
+                final song = displaySongs[index - 1];
                 return SongTile(
                   song: song,
-                  playlist: songs,
+                  playlist: displaySongs,
                   index: index - 1,
                   showAlbum: true,
                 );
