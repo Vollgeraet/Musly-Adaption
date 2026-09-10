@@ -40,6 +40,8 @@ enum _SortOption {
 }
 
 enum _LibraryItemType {
+  allSongs,        // NEU
+  recentlyAdded,   // NEU
   likedSongs,
   downloadedSongs,
   radioStations,
