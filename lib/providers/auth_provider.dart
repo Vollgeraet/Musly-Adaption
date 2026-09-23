@@ -125,7 +125,7 @@ class AuthProvider extends ChangeNotifier {
     required String username,
     required String password,
     bool useLegacyAuth = false,
-    bool allowSelfSignedCertificates = false,
+    bool allowSelfSignedCertificates = true,
     String? customCertificatePath,
     String? clientCertificatePath,
     String? clientCertificatePassword,

@@ -1,3 +1,10 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:provider/provider.dart';
+import '../../models/models.dart';
+import '../../providers/player_provider.dart';
+import '../../widgets/widgets.dart';
+
 class AllSongsScreen extends StatelessWidget {
   final String title;
   final List<Song> songs;
