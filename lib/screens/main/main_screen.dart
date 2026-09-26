@@ -15,7 +15,8 @@ import 'package:musly/theme/app_theme.dart';
 import 'package:musly/utils/navigation_helper.dart';
 import 'package:musly/widgets/widgets.dart';
 import 'package:musly/l10n/app_localizations.dart';
-import 'home_screen.dart';
+import 'all_songs_tab.dart';
+import 'now_playing_tab.dart';
 import 'library_screen.dart';
 import 'search_screen.dart';
 import 'package:musly/screens/media/fantasy_screen.dart';
@@ -64,8 +65,11 @@ class _MainScreenState extends State<MainScreen> {
   int _searchTapCount = 0;
   DateTime _lastSearchTap = DateTime.fromMillisecondsSinceEpoch(0);
 
+  // Reihenfolge entspricht der Navigationsleiste:
+  // 0 = Alle Songs, 1 = Now Playing (Vollbild-Player), 2 = Playlists, 3 = Suche
   final List<Widget> _screens = const [
-    HomeScreen(),
+    AllSongsTab(),
+    NowPlayingTab(),
     LibraryScreen(),
     SearchScreen(),
   ];
@@ -584,7 +588,8 @@ class _MainScreenState extends State<MainScreen> {
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (hasCurrentSong) const MiniPlayer(),
+                      if (hasCurrentSong && _currentIndex != 1)
+                        const MiniPlayer(),
                       liquidGlass
                           ? _buildGlassBottomNav(context)
                           : _buildBottomNav(context),
@@ -622,9 +627,14 @@ class _MainScreenState extends State<MainScreen> {
 
     final items = [
       (
-        icon: CupertinoIcons.music_house,
-        activeIcon: CupertinoIcons.music_house_fill,
-        label: l10n.home,
+        icon: CupertinoIcons.music_note_list,
+        activeIcon: CupertinoIcons.music_note_list,
+        label: 'Alle Songs',
+      ),
+      (
+        icon: CupertinoIcons.play_circle,
+        activeIcon: CupertinoIcons.play_circle_fill,
+        label: 'Player',
       ),
       (
         icon: CupertinoIcons.collections,
@@ -671,7 +681,7 @@ class _MainScreenState extends State<MainScreen> {
                       NavigationHelper.mobileNavigatorKey.currentState;
                   navigatorState?.popUntil((route) => route.isFirst);
 
-                  if (idx == 2) {
+                  if (idx == 3) {
                     final now = DateTime.now();
                     if (now.difference(_lastSearchTap).inSeconds > 3) {
                       _searchTapCount = 0;
@@ -753,7 +763,7 @@ class _MainScreenState extends State<MainScreen> {
                 NavigationHelper.mobileNavigatorKey.currentState;
             navigatorState?.popUntil((route) => route.isFirst);
 
-            if (index == 2) {
+            if (index == 3) {
               final now = DateTime.now();
               if (now.difference(_lastSearchTap).inSeconds > 3) {
                 _searchTapCount = 0;
@@ -774,10 +784,15 @@ class _MainScreenState extends State<MainScreen> {
             setState(() => _currentIndex = index);
           },
           items: [
-            BottomNavigationBarItem(
-              icon: const Icon(CupertinoIcons.music_house),
-              activeIcon: const Icon(CupertinoIcons.music_house_fill),
-              label: l10n.home,
+            const BottomNavigationBarItem(
+              icon: Icon(CupertinoIcons.music_note_list),
+              activeIcon: Icon(CupertinoIcons.music_note_list),
+              label: 'Alle Songs',
+            ),
+            const BottomNavigationBarItem(
+              icon: Icon(CupertinoIcons.play_circle),
+              activeIcon: Icon(CupertinoIcons.play_circle_fill),
+              label: 'Player',
             ),
             BottomNavigationBarItem(
               icon: const Icon(CupertinoIcons.collections),

@@ -611,6 +611,21 @@ class LocalMusicService extends ChangeNotifier {
     return _songs.where((s) => s.albumId == albumId).toList();
   }
 
+  /// Entfernt einen einzelnen lokalen Song (nachdem seine Datei über
+  /// "Dauerhaft löschen" im Song-Optionsmenü von der Festplatte gelöscht
+  /// wurde), baut Alben/Interpreten neu auf und aktualisiert den Cache.
+  Future<void> removeSongById(String id) async {
+    final index = _songs.indexWhere((s) => s.id == id);
+    if (index == -1) return;
+    _songs.removeAt(index);
+    _albums.clear();
+    _artists.clear();
+    _buildAlbumsAndArtists();
+    await _db.deleteSong(id);
+    await _cacheLibrary();
+    notifyListeners();
+  }
+
   List<Song> getSongsByArtist(String artistId) {
     return _songs.where((s) => s.artistId == artistId).toList();
   }

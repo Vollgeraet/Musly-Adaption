@@ -33,6 +33,7 @@ import '../services/crossfade_service.dart';
 import '../services/transcoding_service.dart';
 
 import '../providers/library_provider.dart';
+import '../utils/navigation_helper.dart';
 
 enum RepeatMode { off, all, one }
 
@@ -1725,6 +1726,11 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     int? startIndex,
     Duration? initialPosition,
   }) async {
+    // Jedes Antippen eines Songs zum Abspielen schickt auf den
+    // Now-Playing-Tab (Position 2 in der Navigationsleiste),
+    // analog zu Musicolet.
+    NavigationHelper.switchToTab(1);
+
     if (_currentSong?.id == song.id && !_isPlayingRadio) {
       if (initialPosition != null && initialPosition > Duration.zero) {
         await seek(initialPosition);

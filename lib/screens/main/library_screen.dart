@@ -45,6 +45,7 @@ enum _LibraryItemType {
   recentlyAdded,   // NEU
   likedSongs,
   downloadedSongs,
+  sectionHeader,   // NEU: Trenntext "Ihre Wiedergabelisten"
   radioStations,
   likedAlbums,
   playlist,
@@ -204,8 +205,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
   void _showSortMenu(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final bottomPadding =
-        MediaQuery.of(context).viewPadding.bottom + 80.0 + 16.0;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -214,35 +213,44 @@ class _LibraryScreenState extends State<LibraryScreen> {
           color: isDark ? AppTheme.darkSurface : Colors.white,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
-        padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.white24 : Colors.black12,
-                  borderRadius: BorderRadius.circular(2),
+        // SafeArea statt fest verdrahtetem Extra-Abstand: das war die
+        // Ursache für "BOTTOM OVERFLOWED BY 57 PIXELS" auf manchen
+        // Bildschirmgrößen.
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white24 : Colors.black12,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
                 ),
-              ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Text(
+                    'Sort by',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                _buildSortOptionTile(ctx, 'Recents', _SortOption.recents),
+                _buildSortOptionTile(
+                    ctx, 'Recently added', _SortOption.recentlyAdded),
+                _buildSortOptionTile(
+                    ctx, 'Alphabetical', _SortOption.alphabetical),
+                _buildSortOptionTile(ctx, 'Creator', _SortOption.creator),
+              ],
             ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text(
-                'Sort by',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            _buildSortOptionTile(ctx, 'Recents', _SortOption.recents),
-            _buildSortOptionTile(
-                ctx, 'Recently added', _SortOption.recentlyAdded),
-            _buildSortOptionTile(ctx, 'Alphabetical', _SortOption.alphabetical),
-            _buildSortOptionTile(ctx, 'Creator', _SortOption.creator),
-          ],
+          ),
         ),
       ),
     );
@@ -287,7 +295,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           type: _LibraryItemType.allSongs,
           title: 'Alle Titel',
           subtitle: '${libraryProvider.cachedAllSongs.length} Songs',
-          onTap: () => _navigate(
+          onTap: () => NavigationHelper.pushInstant(
             context,
             AllSongsScreen(
               title: 'Alle Titel',
@@ -301,7 +309,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           type: _LibraryItemType.recentlyAdded,
           title: 'Zuletzt hinzugefügt',
           subtitle: 'Neueste Songs',
-          onTap: () => _navigate(
+          onTap: () => NavigationHelper.pushInstant(
             context,
             AllSongsScreen(
               title: 'Zuletzt hinzugefügt',
@@ -319,23 +327,20 @@ class _LibraryScreenState extends State<LibraryScreen> {
           type: _LibraryItemType.likedSongs,
           title: l10n?.likedSongs ?? 'Liked Songs',
           subtitle: 'Playlist • Favorites',
-          onTap: () => _navigate(context, const FavoritesScreen()),
-        ),
-      );
-    }
-
-    if (_selectedFilter == null || _selectedFilter == 'Downloaded') {
-      items.add(
-        _LibraryItem(
-          type: _LibraryItemType.downloadedSongs,
-          title: l10n?.downloadedSongs ?? 'Downloaded Songs',
-          subtitle: '$downloadedCount songs saved offline',
-          onTap: () => _navigate(context, const DownloadsScreen()),
+          onTap: () => NavigationHelper.pushInstant(context, const FavoritesScreen()),
         ),
       );
     }
 
     if (_selectedFilter == null || _selectedFilter == 'Playlists') {
+      items.add(
+        _LibraryItem(
+          type: _LibraryItemType.sectionHeader,
+          title: 'Ihre Wiedergabelisten',
+          subtitle: '',
+          onTap: () {},
+        ),
+      );
       var playlists = libraryProvider.playlists;
       playlists = _sortList(playlists, (p) => p.name);
       for (final p in playlists) {
@@ -345,7 +350,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             title: p.name,
             subtitle: 'Playlist • ${p.songCount ?? 0} songs',
             data: p,
-            onTap: () => _navigate(
+            onTap: () => NavigationHelper.pushInstant(
               context,
               PlaylistScreen(playlistId: p.id, playlistName: p.name),
             ),
@@ -469,8 +474,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
         builder: (context, libraryProvider, _) {
           return CustomScrollView(
             cacheExtent: 600.0,
-            physics: const AlwaysScrollableScrollPhysics(
-                parent: BouncingScrollPhysics()),
+            // Minimiert den elastischen "Overscroll-Bounce" beim
+            // Über-den-Rand-Ziehen (kein Zurückschnappen mehr wie
+            // vorher mit BouncingScrollPhysics).
+            physics: const ClampingScrollPhysics(),
             slivers: [
               SliverAppBar(
                 automaticallyImplyLeading: false,
@@ -762,7 +769,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
       isYoutube: isYoutube,
       downloadedCount: downloadedCount,
       l10n: l10n,
-    );
+    )
+        // Der Trenntext ("Ihre Wiedergabelisten") ist reines
+        // Listen-Layout und wird in der Grid-Ansicht ausgelassen.
+        .where((i) => i.type != _LibraryItemType.sectionHeader)
+        .toList();
 
     if (items.isEmpty) {
       return SliverToBoxAdapter(
@@ -854,6 +865,20 @@ class _LibraryScreenState extends State<LibraryScreen> {
           gradientColors: const [Color(0xFF006450), Color(0xFF00897B)],
           icon: CupertinoIcons.arrow_down_circle_fill,
           onTap: item.onTap,
+        );
+
+      case _LibraryItemType.sectionHeader:
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(4, 20, 4, 8),
+          child: Text(
+            item.title,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.3,
+              color: isDark ? Colors.white54 : Colors.black45,
+            ),
+          ),
         );
 
       case _LibraryItemType.radioStations:
@@ -1056,6 +1081,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ),
           onTap: item.onTap,
         );
+
+      case _LibraryItemType.sectionHeader:
+        // Wird vor dem Grid-Aufbau bereits herausgefiltert.
+        return const SizedBox.shrink();
 
       case _LibraryItemType.recentlyAdded:
         return _buildGridItemCard(

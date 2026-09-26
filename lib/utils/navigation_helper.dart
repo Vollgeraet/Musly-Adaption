@@ -137,6 +137,43 @@ class NavigationHelper {
   }
 
   static void switchToTab(int index) {
+    // Wichtig: Wenn gerade ein Detail-Screen (z. B. eine Playlist) über
+    // den globalen Navigator gepusht ist, liegt er ÜBER dem MainScreen
+    // und verdeckt ihn komplett. Ohne diesen popUntil ändert sich zwar
+    // intern der Tab-Index, sichtbar wird das aber erst, wenn man
+    // manuell zurücknavigiert - das war der gemeldete Bug.
+    final nav = navigatorKey.currentState;
+    if (nav != null) {
+      nav.popUntil((route) => route.isFirst);
+    }
+    _currentTopWidget = null;
     _onTabChanged?.call(index);
+  }
+
+  /// Wie [push], aber ohne Übergangsanimation (sofortiger Wechsel) -
+  /// z. B. für das Öffnen einer Wiedergabeliste, die instant erscheinen
+  /// soll statt mit der Standard-Slide-Transition.
+  static Future<T?> pushInstant<T>(BuildContext context, Widget page) {
+    _currentTopWidget = page;
+    _lastPushTimestamp = DateTime.now().millisecondsSinceEpoch;
+
+    final nav = navigatorKey.currentState;
+    final route = PageRouteBuilder<T>(
+      settings:
+          RouteSettings(name: page.runtimeType.toString(), arguments: page),
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
+      pageBuilder: (_, __, ___) => page,
+    );
+
+    final future =
+        nav != null ? nav.push<T>(route) : Navigator.of(context).push<T>(route);
+
+    return future.then((res) {
+      if (_currentTopWidget == page) {
+        _currentTopWidget = null;
+      }
+      return res;
+    });
   }
 }

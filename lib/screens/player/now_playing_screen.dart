@@ -17,11 +17,11 @@ import 'package:musly/services/offline_service.dart';
 import 'package:musly/services/lrc_ttml_parser.dart';
 import 'package:musly/widgets/now_playing/queue_view.dart';
 import 'package:musly/widgets/now_playing/now_playing_more_menu.dart';
-import 'package:musly/widgets/now_playing/add_to_menu.dart';
 import 'package:musly/widgets/common/multi_artist_widget.dart';
 import 'package:musly/services/player_ui_settings_service.dart';
 import 'package:musly/l10n/app_localizations.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:musly/utils/navigation_helper.dart';
 
 class NowPlayingScreen extends StatefulWidget {
   final ImageProvider image;
@@ -31,6 +31,11 @@ class NowPlayingScreen extends StatefulWidget {
   final List<LyricLine> lyrics;
   final Song? song;
   final double topPadding;
+  /// True when this screen is embedded as a permanent bottom-nav tab
+  /// instead of being pushed as a modal route. In that case the
+  /// close button / swipe-down gesture switches back to the
+  /// "Alle Songs" tab instead of popping a (non-existent) route.
+  final bool embedded;
 
   const NowPlayingScreen({
     super.key,
@@ -41,6 +46,7 @@ class NowPlayingScreen extends StatefulWidget {
     this.lyrics = const [],
     this.song,
     this.topPadding = 0.0,
+    this.embedded = false,
   });
 
   @override
@@ -188,6 +194,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   void _onVerticalDragEnd(DragEndDetails details) {
     if (details.primaryVelocity != null && details.primaryVelocity! > 300) {
+      _closeOrSwitchTab();
+    }
+  }
+
+  void _closeOrSwitchTab() {
+    if (widget.embedded) {
+      NavigationHelper.switchToTab(0);
+    } else {
       Navigator.of(context).pop();
     }
   }
@@ -326,7 +340,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               duration: const Duration(milliseconds: 300),
                               curve: Curves.easeInOut);
                         } else {
-                          Navigator.of(context).pop();
+                          _closeOrSwitchTab();
                         }
                       },
                     ),
@@ -508,71 +522,28 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         vertical:
             isLandscape ? 2.0 : (verticalPadding ?? (isSmall ? 6.0 : 12.0)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                MarqueeText(
-                  text: title,
-                  style: TextStyle(
-                    fontSize: isLandscape ? 19 : (isSmall ? 20 : 24),
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                SizedBox(height: isLandscape ? 2 : (isSmall ? 2 : 4)),
-                MultiArtistWidget(
-                  artists: currentSong?.artistParticipants,
-                  artistFallback: artist,
-                  artistIdFallback: currentSong?.artistId,
-                  onBeforeNavigate: () => Navigator.pop(context),
-                  style: TextStyle(
-                    fontSize: isLandscape ? 14 : (isSmall ? 15 : 18),
-                    color: Colors.white.withValues(alpha: 0.75),
-                  ),
-                ),
-              ],
+          MarqueeText(
+            text: title,
+            style: TextStyle(
+              fontSize: isLandscape ? 19 : (isSmall ? 20 : 24),
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
           ),
-          IconButton(
-            tooltip: isStarred ? 'Remove from favorites' : 'Add to favorites',
-            icon: Icon(
-              isStarred
-                  ? Icons.favorite_rounded
-                  : Icons.favorite_border_rounded,
-              color: isStarred
-                  ? Theme.of(context).colorScheme.primary
-                  : Colors.white,
-              size: isLandscape ? 22 : 24,
+          SizedBox(height: isLandscape ? 2 : (isSmall ? 2 : 4)),
+          MultiArtistWidget(
+            artists: currentSong?.artistParticipants,
+            artistFallback: artist,
+            artistIdFallback: currentSong?.artistId,
+            onBeforeNavigate: () => Navigator.pop(context),
+            style: TextStyle(
+              fontSize: isLandscape ? 14 : (isSmall ? 15 : 18),
+              color: Colors.white.withValues(alpha: 0.75),
             ),
-            onPressed: () {
-              if (currentSong == null) return;
-              provider.toggleFavorite();
-            },
-          ),
-          IconButton(
-            tooltip: 'Add to playlist',
-            icon: Icon(
-              Icons.add_circle_outline_rounded,
-              color: Colors.white70,
-              size: isLandscape ? 22 : 24,
-            ),
-            onPressed: () {
-              if (currentSong == null) return;
-              showModalBottomSheet(
-                context: context,
-                backgroundColor: Colors.transparent,
-                isScrollControlled: true,
-                useRootNavigator: true,
-                builder: (context) => AddToMenu(
-                  song: currentSong,
-                  coverProvider: _currentImageProvider ?? widget.image,
-                ),
-              );
-            },
           ),
         ],
       ),
@@ -826,27 +797,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         ),
                         const SizedBox(height: 2),
                         NowPlayingBottomActions(
-                          isLyricsActive: _currentPage == 1,
-                          isQueueActive: _currentPage == 2,
-                          accentColor: accentColor,
-                          onLyricsTap: () {
-                            if (_currentPage == 1) {
-                              _pageController.animateToPage(0,
-                                  duration: const Duration(milliseconds: 300),
-                                  curve: Curves.easeInOut);
-                            } else {
+                          song: currentSong,
+                          onShowLyrics: () {
+                            if (_currentPage != 1) {
                               _pageController.animateToPage(1,
-                                  duration: const Duration(milliseconds: 300),
-                                  curve: Curves.easeInOut);
-                            }
-                          },
-                          onQueueTap: () {
-                            if (_currentPage == 2) {
-                              _pageController.animateToPage(0,
-                                  duration: const Duration(milliseconds: 300),
-                                  curve: Curves.easeInOut);
-                            } else {
-                              _pageController.animateToPage(2,
                                   duration: const Duration(milliseconds: 300),
                                   curve: Curves.easeInOut);
                             }
@@ -993,27 +947,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 },
               ),
               NowPlayingBottomActions(
-                isLyricsActive: _currentPage == 1,
-                isQueueActive: _currentPage == 2,
-                accentColor: accentColor,
-                onLyricsTap: () {
-                  if (_currentPage == 1) {
-                    _pageController.animateToPage(0,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut);
-                  } else {
+                song: currentSong,
+                onShowLyrics: () {
+                  if (_currentPage != 1) {
                     _pageController.animateToPage(1,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut);
-                  }
-                },
-                onQueueTap: () {
-                  if (_currentPage == 2) {
-                    _pageController.animateToPage(0,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut);
-                  } else {
-                    _pageController.animateToPage(2,
                         duration: const Duration(milliseconds: 300),
                         curve: Curves.easeInOut);
                   }

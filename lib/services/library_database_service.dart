@@ -310,6 +310,14 @@ class LibraryDatabaseService {
     await db.delete('playlists', where: 'id = ?', whereArgs: [playlistId]);
   }
 
+  /// Entfernt einen einzelnen Song endgültig aus dem Cache (z. B. nachdem
+  /// die zugehörige lokale Datei über "Dauerhaft löschen" gelöscht wurde),
+  /// damit er nicht beim nächsten App-Start aus dem Cache wieder auftaucht.
+  Future<void> deleteSong(String songId) async {
+    final db = await database;
+    await db.delete('songs', where: 'id = ?', whereArgs: [songId]);
+  }
+
   Future<void> setSongStarred(String songId, bool starred) async {
     final db = await database;
     await db.update(
