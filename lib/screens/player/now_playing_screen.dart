@@ -4,7 +4,7 @@ import 'package:musly/widgets/now_playing/album_art_view.dart';
 import 'package:musly/widgets/now_playing/marquee_text.dart';
 import 'package:musly/widgets/now_playing/playback_controls.dart';
 import 'package:musly/widgets/now_playing/playback_progress_slider.dart';
-import 'package:musly/widgets/now_playing/volume_slider.dart';
+import 'package:musly/widgets/now_playing/volume_quick_popup.dart';
 import 'package:musly/widgets/now_playing/now_playing_bottom_actions.dart';
 import 'lyrics_screen.dart';
 import 'package:musly/models/lyric_line.dart';
@@ -18,6 +18,7 @@ import 'package:musly/services/lrc_ttml_parser.dart';
 import 'package:musly/widgets/now_playing/queue_view.dart';
 import 'package:musly/widgets/now_playing/now_playing_more_menu.dart';
 import 'package:musly/widgets/common/multi_artist_widget.dart';
+import 'dart:async';
 import 'package:musly/services/player_ui_settings_service.dart';
 import 'package:musly/l10n/app_localizations.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -61,6 +62,18 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   bool _isLoadingLyrics = true;
   Song? _lastSong;
   ImageProvider? _currentImageProvider;
+  bool _showVolumePopup = false;
+  Timer? _volumePopupTimer;
+
+  void _toggleVolumePopup() {
+    setState(() => _showVolumePopup = !_showVolumePopup);
+    _volumePopupTimer?.cancel();
+    if (_showVolumePopup) {
+      _volumePopupTimer = Timer(const Duration(seconds: 4), () {
+        if (mounted) setState(() => _showVolumePopup = false);
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -187,6 +200,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   @override
   void dispose() {
     _pageController.dispose();
+    _volumePopupTimer?.cancel();
     super.dispose();
   }
 
@@ -749,53 +763,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           isSmall: true,
                           isLandscape: true,
                         ),
-                        const SizedBox(height: 4),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          child: StreamBuilder<Duration>(
-                            stream: provider.positionStream,
-                            initialData: provider.position,
-                            builder: (context, snapshot) {
-                              return PlaybackProgressSlider(
-                                position: snapshot.data ?? Duration.zero,
-                                duration: provider.duration,
-                                accentColor: Colors.white,
-                                onChanged: (val) {
-                                  provider.seek(val);
-                                },
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          child: PlaybackControls(
-                            isPlaying: provider.isPlaying,
-                            isShuffleEnabled: provider.shuffleEnabled,
-                            isRepeatEnabled:
-                                provider.repeatMode != RepeatMode.off,
-                            accentColor: accentColor,
-                            onPlayPause: () => provider.togglePlayPause(),
-                            onNext: () => provider.skipNext(),
-                            onPrevious: () => provider.skipPrevious(),
-                            onShuffleToggle: () => provider.toggleShuffle(),
-                            onRepeatToggle: () => provider.toggleRepeat(),
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        ValueListenableBuilder<bool>(
-                          valueListenable: PlayerUiSettingsService()
-                              .showVolumeSliderNotifier,
-                          builder: (context, showVolume, _) {
-                            if (!showVolume) return const SizedBox.shrink();
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 16.0),
-                              child: VolumeSlider(),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 2),
                         NowPlayingBottomActions(
                           song: currentSong,
                           onShowLyrics: () {
@@ -805,6 +772,42 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                   curve: Curves.easeInOut);
                             }
                           },
+                        ),
+                        const SizedBox(height: 4),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: PlaybackControls(
+                            isPlaying: provider.isPlaying,
+                            isVolumePopupActive: _showVolumePopup,
+                            isRepeatEnabled:
+                                provider.repeatMode != RepeatMode.off,
+                            accentColor: accentColor,
+                            onPlayPause: () => provider.togglePlayPause(),
+                            onNext: () => provider.skipNext(),
+                            onPrevious: () => provider.skipPrevious(),
+                            onVolumeTap: _toggleVolumePopup,
+                            onRepeatToggle: () => provider.toggleRepeat(),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: _showVolumePopup
+                              ? const VolumeQuickPopup()
+                              : StreamBuilder<Duration>(
+                                  stream: provider.positionStream,
+                                  initialData: provider.position,
+                                  builder: (context, snapshot) {
+                                    return PlaybackProgressSlider(
+                                      position: snapshot.data ?? Duration.zero,
+                                      duration: provider.duration,
+                                      accentColor: Colors.white,
+                                      onChanged: (val) {
+                                        provider.seek(val);
+                                      },
+                                    );
+                                  },
+                                ),
                         ),
                       ],
                     ),
@@ -902,50 +905,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 verticalPadding: titleVerticalPadding,
               ),
               _buildStarRatingRow(provider, currentSong, isSmall: isSmall),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                child: StreamBuilder<Duration>(
-                  stream: provider.positionStream,
-                  initialData: provider.position,
-                  builder: (context, snapshot) {
-                    return PlaybackProgressSlider(
-                      position: snapshot.data ?? Duration.zero,
-                      duration: provider.duration,
-                      accentColor: Colors.white,
-                      onChanged: (val) {
-                        provider.seek(val);
-                      },
-                    );
-                  },
-                ),
-              ),
-              SizedBox(height: sliderBottomSpacing),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                child: PlaybackControls(
-                  isPlaying: provider.isPlaying,
-                  isShuffleEnabled: provider.shuffleEnabled,
-                  isRepeatEnabled: provider.repeatMode != RepeatMode.off,
-                  accentColor: accentColor,
-                  onPlayPause: () => provider.togglePlayPause(),
-                  onNext: () => provider.skipNext(),
-                  onPrevious: () => provider.skipPrevious(),
-                  onShuffleToggle: () => provider.toggleShuffle(),
-                  onRepeatToggle: () => provider.toggleRepeat(),
-                ),
-              ),
-              SizedBox(height: controlsBottomSpacing),
-              ValueListenableBuilder<bool>(
-                valueListenable:
-                    PlayerUiSettingsService().showVolumeSliderNotifier,
-                builder: (context, showVolume, _) {
-                  if (!showVolume) return const SizedBox.shrink();
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 32.0),
-                    child: VolumeSlider(),
-                  );
-                },
-              ),
               NowPlayingBottomActions(
                 song: currentSong,
                 onShowLyrics: () {
@@ -955,6 +914,40 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         curve: Curves.easeInOut);
                   }
                 },
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                child: PlaybackControls(
+                  isPlaying: provider.isPlaying,
+                  isVolumePopupActive: _showVolumePopup,
+                  isRepeatEnabled: provider.repeatMode != RepeatMode.off,
+                  accentColor: accentColor,
+                  onPlayPause: () => provider.togglePlayPause(),
+                  onNext: () => provider.skipNext(),
+                  onPrevious: () => provider.skipPrevious(),
+                  onVolumeTap: _toggleVolumePopup,
+                  onRepeatToggle: () => provider.toggleRepeat(),
+                ),
+              ),
+              SizedBox(height: controlsBottomSpacing),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                child: _showVolumePopup
+                    ? const VolumeQuickPopup()
+                    : StreamBuilder<Duration>(
+                        stream: provider.positionStream,
+                        initialData: provider.position,
+                        builder: (context, snapshot) {
+                          return PlaybackProgressSlider(
+                            position: snapshot.data ?? Duration.zero,
+                            duration: provider.duration,
+                            accentColor: Colors.white,
+                            onChanged: (val) {
+                              provider.seek(val);
+                            },
+                          );
+                        },
+                      ),
               ),
               SizedBox(height: bottomActionsSpacing),
             ],

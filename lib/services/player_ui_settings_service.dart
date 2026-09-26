@@ -17,6 +17,7 @@ class PlayerUiSettingsService {
   static const String _keyLyricsGlowEffect = 'lyrics_glow_effect';
   static const String _keyShowLiveLyricUnderArtwork =
       'player_show_live_lyric_under_artwork';
+  static const String _keyShowListSearchBar = 'list_show_search_bar';
 
   static final PlayerUiSettingsService _instance =
       PlayerUiSettingsService._internal();
@@ -46,6 +47,7 @@ class PlayerUiSettingsService {
   final ValueNotifier<bool> lyricsGlowEffectNotifier = ValueNotifier(true);
   final ValueNotifier<bool> showLiveLyricUnderArtworkNotifier =
       ValueNotifier(false);
+  final ValueNotifier<bool> showListSearchBarNotifier = ValueNotifier(true);
 
   Future<void> initialize() async {
     _prefs ??= await SharedPreferences.getInstance();
@@ -63,6 +65,17 @@ class PlayerUiSettingsService {
     lyricsAlignmentNotifier.value = getLyricsAlignment();
     lyricsGlowEffectNotifier.value = getLyricsGlowEffect();
     showLiveLyricUnderArtworkNotifier.value = getShowLiveLyricUnderArtwork();
+    showListSearchBarNotifier.value = getShowListSearchBar();
+  }
+
+  Future<void> setShowListSearchBar(bool show) async {
+    await initialize();
+    await _prefs!.setBool(_keyShowListSearchBar, show);
+    showListSearchBarNotifier.value = show;
+  }
+
+  bool getShowListSearchBar() {
+    return _prefs?.getBool(_keyShowListSearchBar) ?? true;
   }
 
   Future<void> setShowLiveLyricUnderArtwork(bool show) async {
