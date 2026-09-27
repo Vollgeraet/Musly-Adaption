@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../models/song.dart';
@@ -6,11 +6,11 @@ import '../../providers/player_provider.dart';
 import '../../utils/song_menu_actions.dart';
 import '../modals/song_info_modal.dart';
 import 'now_playing_more_overlay.dart';
+import 'repeat_mode_menu.dart';
 
-/// Reihe unterhalb der Wiedergabe-Steuerung: Herz (Favorit), Titel-Infos,
-/// zu Wiedergabelisten hinzufügen und "..." (öffnet das ausführliche
-/// Musicolet-artige Menü). Ersetzt die frühere Connect-to-device /
-/// Lyrics / Warteschlange-Reihe.
+/// Reihe unterhalb von Titel/Interpret: links geclustert Herz, Info,
+/// Playlist+, "..."; rechts Wiederholung (öffnet Musicolet-artiges
+/// Wiederholungs-Menü) und Zufallswiedergabe-Umschalter.
 class NowPlayingBottomActions extends StatelessWidget {
   final Song? song;
   final VoidCallback onShowLyrics;
@@ -27,34 +27,72 @@ class NowPlayingBottomActions extends StatelessWidget {
     final isStarred = song?.starred ?? false;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _ActionButton(
-            icon: isStarred ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-            color: isStarred ? Theme.of(context).colorScheme.primary : Colors.white70,
-            onTap: song == null ? null : () => playerProvider.toggleFavorite(),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _ActionButton(
+                icon: isStarred
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                color: isStarred
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.white70,
+                onTap:
+                    song == null ? null : () => playerProvider.toggleFavorite(),
+              ),
+              _ActionButton(
+                icon: Icons.info_outline_rounded,
+                onTap: song == null
+                    ? null
+                    : () => SongInfoModal.show(context, song!),
+              ),
+              _ActionButton(
+                icon: Icons.playlist_add_rounded,
+                onTap: song == null
+                    ? null
+                    : () => SongMenuActions.showPlaylistPicker(context, song!),
+              ),
+              _ActionButton(
+                icon: Icons.more_horiz_rounded,
+                onTap: song == null
+                    ? null
+                    : () => NowPlayingMoreOverlay.show(
+                          context,
+                          song!,
+                          onShowLyrics: onShowLyrics,
+                        ),
+              ),
+            ],
           ),
-          _ActionButton(
-            icon: Icons.info_outline_rounded,
-            onTap: song == null ? null : () => SongInfoModal.show(context, song!),
-          ),
-          _ActionButton(
-            icon: Icons.playlist_add_rounded,
-            onTap: song == null
-                ? null
-                : () => SongMenuActions.showPlaylistPicker(context, song!),
-          ),
-          _ActionButton(
-            icon: Icons.more_horiz_rounded,
-            onTap: song == null
-                ? null
-                : () => NowPlayingMoreOverlay.show(
-                      context,
-                      song!,
-                      onShowLyrics: onShowLyrics,
-                    ),
+          Consumer<PlayerProvider>(
+            builder: (context, provider, _) {
+              final repeatActive = provider.repeatMode != RepeatMode.off;
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _ActionButton(
+                    icon: Icons.repeat_rounded,
+                    color: repeatActive
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.white70,
+                    onTap: () => RepeatModeMenu.show(context, provider),
+                  ),
+                  _ActionButton(
+                    icon: provider.shuffleEnabled
+                        ? Icons.shuffle_on_rounded
+                        : Icons.shuffle_rounded,
+                    color: provider.shuffleEnabled
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.white70,
+                    onTap: () => provider.toggleShuffle(),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),

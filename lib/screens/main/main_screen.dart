@@ -588,8 +588,8 @@ class _MainScreenState extends State<MainScreen> {
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (hasCurrentSong && _currentIndex != 1)
-                        const MiniPlayer(),
+                      // MiniPlayer entfernt: der "Player"-Tab in der
+                      // Navigationsleiste übernimmt diese Rolle bereits.
                       liquidGlass
                           ? _buildGlassBottomNav(context)
                           : _buildBottomNav(context),

@@ -6,8 +6,8 @@ class PlaybackControls extends StatelessWidget {
   final VoidCallback onPlayPause;
   final VoidCallback onNext;
   final VoidCallback onPrevious;
-  final bool isShuffleEnabled;
-  final VoidCallback onShuffleToggle;
+  final VoidCallback onVolumeTap;
+  final bool isVolumePopupActive;
   final bool isRepeatEnabled;
   final VoidCallback onRepeatToggle;
   final Color accentColor;
@@ -18,8 +18,8 @@ class PlaybackControls extends StatelessWidget {
     required this.onPlayPause,
     required this.onNext,
     required this.onPrevious,
-    required this.isShuffleEnabled,
-    required this.onShuffleToggle,
+    required this.onVolumeTap,
+    this.isVolumePopupActive = false,
     required this.isRepeatEnabled,
     required this.onRepeatToggle,
     this.accentColor = Colors.white,
@@ -31,10 +31,10 @@ class PlaybackControls extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         _SecondaryControlButton(
-          icon: Icons.shuffle,
-          isActive: isShuffleEnabled,
+          icon: Icons.volume_up_rounded,
+          isActive: isVolumePopupActive,
           activeColor: accentColor,
-          onTap: onShuffleToggle,
+          onTap: onVolumeTap,
         ),
         _MainControlButton(
           icon: Icons.skip_previous_rounded,

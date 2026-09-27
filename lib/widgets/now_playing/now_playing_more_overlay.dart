@@ -4,6 +4,7 @@ import '../../models/song.dart';
 import '../../providers/player_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/song_menu_actions.dart';
+import '../common/floating_panel.dart';
 
 /// Das ausführliche "..."-Menü aus der Now-Playing-Ansicht (Musicolet-
 /// Vorbild). Wie das Song-Optionsmenü ein schwebendes Panel, das nicht
@@ -14,14 +15,8 @@ class NowPlayingMoreOverlay extends StatelessWidget {
     Song song, {
     required VoidCallback onShowLyrics,
   }) {
-    return showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      useRootNavigator: true,
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.82,
-      ),
+    return showFloatingPanel(
+      context,
       builder: (context) =>
           NowPlayingMoreOverlay(song: song, onShowLyrics: onShowLyrics),
     );
@@ -47,22 +42,13 @@ class NowPlayingMoreOverlay extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: isDark ? AppTheme.darkSurface : Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: SafeArea(
         top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 36,
-              height: 5,
-              decoration: BoxDecoration(
-                color: dividerColor,
-                borderRadius: BorderRadius.circular(2.5),
-              ),
-            ),
             const SizedBox(height: 8),
             Flexible(
               child: SingleChildScrollView(

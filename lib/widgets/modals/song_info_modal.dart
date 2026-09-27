@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import '../../models/song.dart';
 import '../../services/recommendation_service.dart';
 import '../../theme/app_theme.dart';
+import '../common/floating_panel.dart';
 
 /// Zeigt die Metadaten eines Songs an ("Titel-Infos" im Song-Optionsmenü).
 ///
@@ -16,15 +17,11 @@ class SongInfoModal extends StatelessWidget {
   static const String _unknown = '[unbekannt]';
 
   static Future<void> show(BuildContext context, Song song) {
-    // Öffnet sich sofort ohne Slide-Up-Animation (wie gewünscht),
-    // behält aber das Bottom-Sheet-artige Layout per DraggableScrollableSheet.
-    return showGeneralDialog(
-      context: context,
-      barrierLabel: 'Titel-Infos',
-      barrierDismissible: true,
-      barrierColor: Colors.black54,
-      transitionDuration: Duration.zero,
-      pageBuilder: (ctx, anim1, anim2) => SongInfoModal(song: song),
+    // Schwebendes Panel: sofort sichtbar, Rand auf allen Seiten, nicht
+    // wegwischbar - nur über den X-Button oder Zurück schließbar.
+    return showFloatingPanel(
+      context,
+      builder: (ctx) => SongInfoModal(song: song),
     );
   }
 
@@ -114,71 +111,54 @@ class SongInfoModal extends StatelessWidget {
       ),
     ];
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.85,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      expand: false,
-      builder: (context, scrollController) {
-        return Container(
-          decoration: BoxDecoration(
-            color: isDark ? AppTheme.darkSurface : Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppTheme.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+            child: Row(
+              children: [
+                const Icon(CupertinoIcons.info),
+                const SizedBox(width: 8),
+                Text(
+                  'Titel-Infos',
+                  style: theme.textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
           ),
-          child: Column(
-            children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 36,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: isDark ? AppTheme.darkDivider : AppTheme.lightDivider,
-                  borderRadius: BorderRadius.circular(2.5),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
-                child: Row(
-                  children: [
-                    const Icon(CupertinoIcons.info),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Titel-Infos',
-                      style: theme.textTheme.titleLarge
-                          ?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: ListView.builder(
-                  controller: scrollController,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 8),
-                  itemCount: rows.length,
-                  itemBuilder: (context, index) {
-                    final row = rows[index];
-                    if (row == null) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Divider(height: 1),
-                      );
-                    }
-                    return _InfoRow(data: row);
-                  },
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
+          const Divider(height: 1),
+          Flexible(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              itemCount: rows.length,
+              itemBuilder: (context, index) {
+                final row = rows[index];
+                if (row == null) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Divider(height: 1),
+                  );
+                }
+                return _InfoRow(data: row);
+              },
+            ),
           ),
-        );
-      },
+          const SizedBox(height: 8),
+        ],
+      ),
     );
   }
 }

@@ -8,20 +8,14 @@ import '../../providers/player_provider.dart';
 import '../../services/subsonic_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/song_menu_actions.dart';
+import '../common/floating_panel.dart';
 import 'song_info_modal.dart';
 
 class SongOptionsModal extends StatefulWidget {
   static Future<void> show(BuildContext context, Song song) {
     HapticFeedback.mediumImpact();
-    return showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      // Lässt oben etwas Hintergrund sichtbar (wie ein schwebendes
-      // Panel statt einer Vollbild-Fläche), analog zu Musicolet.
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.82,
-      ),
+    return showFloatingPanel(
+      context,
       builder: (context) => SongOptionsModal(song: song),
     );
   }
@@ -54,23 +48,14 @@ class _SongOptionsModalState extends State<SongOptionsModal> {
     return Container(
       decoration: BoxDecoration(
         color: isDark ? AppTheme.darkSurface : Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: SafeArea(
         top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 36,
-              height: 5,
-              decoration: BoxDecoration(
-                color: dividerColor,
-                borderRadius: BorderRadius.circular(2.5),
-              ),
-            ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             // Kopfzeile: nur Titel + Herz-Icon, kein Cover mehr hier.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
