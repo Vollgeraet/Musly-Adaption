@@ -367,10 +367,33 @@ class SubsonicService {
     return '$activeBaseUrl/rest/$endpoint?$queryString';
   }
 
+  /// Liefert die jeweils "andere" konfigurierte Server-Adresse (LAN↔WAN),
+  /// falls vorhanden - Grundlage für den automatischen Retry-Fallback in
+  /// [_request], wenn die aktuell aktive Adresse fehlschlägt (z. B. DNS-
+  /// Auflösung von navidrome.internal schlägt vorübergehend fehl, während
+  /// Tailscale/das Heimnetz gerade neu verhandelt).
+  String? _alternateBaseUrl() {
+    if (_config == null) return null;
+    final lan = _config!.normalizedLanUrl;
+    final wan = _config!.normalizedUrl;
+    if (lan == null || lan.isEmpty) return null;
+    if (activeBaseUrl == wan) return lan;
+    if (activeBaseUrl == lan) return wan;
+    return null;
+  }
+
   Future<Map<String, dynamic>> _request(
     String endpoint, [
     Map<String, String>? params,
-  ]) async {
+  ]) {
+    return _requestInternal(endpoint, params, allowFallbackRetry: true);
+  }
+
+  Future<Map<String, dynamic>> _requestInternal(
+    String endpoint,
+    Map<String, String>? params, {
+    required bool allowFallbackRetry,
+  }) async {
     final url = _buildUrl(endpoint, params);
 
     try {
@@ -393,6 +416,22 @@ class SubsonicService {
 
       return subsonicResponse;
     } on DioException catch (e) {
+      final isConnectionIssue = e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.sendTimeout ||
+          e.type == DioExceptionType.receiveTimeout ||
+          e.type == DioExceptionType.connectionError;
+
+      if (allowFallbackRetry && isConnectionIssue) {
+        final alternate = _alternateBaseUrl();
+        if (alternate != null) {
+          debugPrint(
+              '[Subsonic] "$endpoint" failed via $activeBaseUrl (${e.type.name}), retrying via $alternate');
+          _activeBaseUrl = alternate;
+          return _requestInternal(endpoint, params,
+              allowFallbackRetry: false);
+        }
+      }
+
       switch (e.type) {
         case DioExceptionType.connectionTimeout:
         case DioExceptionType.sendTimeout:
