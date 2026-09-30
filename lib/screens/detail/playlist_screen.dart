@@ -7,8 +7,13 @@ import 'package:musly/services/subsonic_service.dart';
 import 'package:musly/services/offline_service.dart';
 import 'package:musly/services/favorite_playlists_service.dart';
 import 'package:musly/services/playlist_cover_service.dart';
+import 'package:musly/services/recommendation_service.dart';
 import 'package:musly/theme/app_theme.dart';
 import 'package:musly/widgets/widgets.dart';
+import 'package:musly/widgets/common/song_list_header.dart';
+import 'package:musly/widgets/common/floating_panel.dart';
+import 'package:musly/utils/song_sorting.dart';
+import 'package:musly/utils/song_menu_actions.dart';
 import 'package:musly/l10n/app_localizations.dart';
 import 'package:musly/utils/screen_helper.dart';
 
@@ -31,8 +36,9 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
   bool _isLoading = true;
   bool _isSelecting = false;
   bool _isReordering = false;
-  bool _showSearch = false;
   String _searchQuery = '';
+  SongSortOption _currentSort = SongSortOption.titleAsc;
+  final TextEditingController _searchController = TextEditingController();
   final Set<int> _selectedIndices = {};
 
   bool _allDownloaded = false;
@@ -50,6 +56,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
   void dispose() {
     OfflineService().downloadedPlaylistIds.removeListener(_updateDownloadState);
     OfflineService().queuedPlaylistIds.removeListener(_updateDownloadState);
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -111,6 +118,153 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
     }
 
     playerProvider.playSong(songs.first, playlist: songs.cast(), startIndex: 0);
+  }
+
+  void _playRandomSong(List<Song> songs) {
+    if (songs.isEmpty) return;
+    final playerProvider = Provider.of<PlayerProvider>(context, listen: false);
+    final index = DateTime.now().millisecondsSinceEpoch % songs.length;
+    final song = songs[index];
+    playerProvider.playSong(song, playlist: songs, startIndex: index);
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() => _searchQuery = value.trim().toLowerCase());
+  }
+
+  void _showPlaylistMoreMenu(BuildContext context, List<Song> displaySongs) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dividerColor = isDark ? AppTheme.darkDivider : AppTheme.lightDivider;
+    final playerProvider = Provider.of<PlayerProvider>(context, listen: false);
+    final canReorder = (_playlist?.songs?.length ?? 0) > 1;
+
+    showFloatingPanel(
+      context,
+      builder: (sheetContext) => Container(
+        decoration: BoxDecoration(
+          color: isDark ? AppTheme.darkSurface : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ListMenuTile(
+                        icon: Icons.add_to_home_screen_rounded,
+                        title: 'Verknüpfung auf Homescreen',
+                        enabled: false,
+                      ),
+                      ListMenuTile(
+                        icon: Icons.shuffle_on_rounded,
+                        title: 'Erweitertes Mischen',
+                        enabled: false,
+                      ),
+                      ListMenuTile(
+                        icon: Icons.play_arrow_rounded,
+                        title: 'Abspielen',
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          _playAll(shuffle: false);
+                        },
+                      ),
+                      Divider(
+                          height: 17,
+                          indent: 16,
+                          endIndent: 16,
+                          color: dividerColor),
+                      ListMenuTile(
+                        icon: Icons.playlist_play_rounded,
+                        title: 'Nach dem aktuellen Titel spielen',
+                        onTap: () async {
+                          Navigator.pop(sheetContext);
+                          for (final s in displaySongs.reversed) {
+                            await playerProvider.addToQueueNext(s);
+                          }
+                        },
+                      ),
+                      ListMenuTile(
+                        icon: Icons.queue_music_rounded,
+                        title: 'Zur aktuellen Warteschlange hinzufügen',
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          playerProvider.addAllToQueue(displaySongs);
+                        },
+                      ),
+                      ListMenuTile(
+                        icon: Icons.playlist_add_rounded,
+                        title: 'Zu Warteschlange hinzufügen',
+                        enabled: false,
+                      ),
+                      ListMenuTile(
+                        icon: Icons.library_add_rounded,
+                        title: 'Zu Wiedergabelisten hinzufügen',
+                        enabled: false,
+                      ),
+                      Divider(
+                          height: 17,
+                          indent: 16,
+                          endIndent: 16,
+                          color: dividerColor),
+                      ListMenuTile(
+                        icon: Icons.edit_note_rounded,
+                        title: 'Tags bearbeiten',
+                        enabled: false,
+                      ),
+                      ListMenuTile(
+                        icon: Icons.speed_rounded,
+                        title: 'Wiedergabegeschwindigkeit und Tonhöhe',
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          SongMenuActions.showSpeedPitchDialog(
+                              context, playerProvider);
+                        },
+                      ),
+                      ListMenuTile(
+                        icon: Icons.share_rounded,
+                        title: 'Teilen',
+                        enabled: false,
+                      ),
+                      Divider(
+                          height: 17,
+                          indent: 16,
+                          endIndent: 16,
+                          color: dividerColor),
+                      ListMenuTile(
+                        icon: CupertinoIcons.arrow_up_arrow_down,
+                        title: 'Titel manuell anordnen',
+                        enabled: canReorder,
+                        onTap: canReorder
+                            ? () {
+                                Navigator.pop(sheetContext);
+                                _toggleReorderMode();
+                              }
+                            : null,
+                      ),
+                      ListMenuTile(
+                        icon: CupertinoIcons.checkmark_circle,
+                        title: 'Wählen Sie mehrere aus',
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          _toggleSelectMode();
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _removeSongFromPlaylist(int index) async {
@@ -571,350 +725,212 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
       );
     }
 
+    final recProfiles =
+        Provider.of<RecommendationService>(context, listen: false).profiles;
+    final baseSongs = _playlist!.songs ?? [];
+    final searchedSongs = _searchQuery.isEmpty
+        ? baseSongs
+        : baseSongs
+            .where((s) =>
+                s.title.toLowerCase().contains(_searchQuery) ||
+                (s.artist?.toLowerCase().contains(_searchQuery) ?? false))
+            .toList();
+    final displaySongs = sortSongs(searchedSongs, _currentSort, recProfiles);
+    final totalDuration = Duration(
+      seconds: baseSongs.fold<int>(0, (sum, s) => sum + (s.duration ?? 0)),
+    );
+
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            expandedHeight: ScreenHelper.isSmallScreen(context) ? 280 : 360,
-            leading: IconButton(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.black.withValues(alpha: 0.5)
-                      : Colors.white.withValues(alpha: 0.5),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  CupertinoIcons.back,
-                  color: isDark ? Colors.white : Colors.black,
-                ),
-              ),
-              onPressed: () => Navigator.pop(context),
-            ),
-            flexibleSpace: FlexibleSpaceBar(
-              collapseMode: CollapseMode.pin,
-              background: LayoutBuilder(
-                builder: (context, constraints) {
-                  final topPadding = MediaQuery.of(context).padding.top;
-                  final isSmall = ScreenHelper.isSmallScreen(context);
-                  final minHeight = kToolbarHeight + topPadding;
-                  final maxHeight = isSmall ? 280.0 : 360.0;
-                  final currentHeight = constraints.maxHeight;
-                  final delta = (maxHeight - minHeight).clamp(1.0, 999.0);
-                  final progress =
-                      ((currentHeight - minHeight) / delta).clamp(0.0, 1.0);
-
-                  final maxArtSize = isSmall ? 190.0 : 240.0;
-                  final availableHeight =
-                      (currentHeight - topPadding - (isSmall ? 16.0 : 24.0))
-                          .clamp(0.0, maxHeight);
-                  final artDimension =
-                      (maxArtSize * progress).clamp(0.0, availableHeight);
-                  final opacity = (progress * 1.3 - 0.1).clamp(0.0, 1.0);
-
-                  if (artDimension <= 10.0 || opacity <= 0.0) {
-                    return const SizedBox.shrink();
-                  }
-
-                  return Center(
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        top: topPadding + (isSmall ? 8.0 : 12.0) * progress,
-                        bottom: (isSmall ? 10.0 : 16.0) * progress,
+      body: Column(
+        children: [
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadPlaylist,
+              child: CustomScrollView(
+                physics: const ClampingScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: SongListHeader(
+                      title: _playlist!.name,
+                      songCount: baseSongs.length,
+                      totalDuration: totalDuration,
+                      onRandom: () => _playRandomSong(displaySongs),
+                      onSort: () => showSongSortPanel(
+                        context,
+                        current: _currentSort,
+                        onSelected: (opt) =>
+                            setState(() => _currentSort = opt),
                       ),
-                      child: Opacity(
-                        opacity: opacity,
-                        child: SizedBox.square(
-                          dimension: artDimension,
-                          child: PlaylistArtwork(
-                            playlist: _playlist,
-                            songs: _playlist?.songs,
-                            size: artDimension,
-                            borderRadius: (14.0 * progress).clamp(4.0, 14.0),
-                            shadow: progress > 0.3
-                                ? BoxShadow(
-                                    color: Colors.black.withValues(
-                                      alpha: (isDark ? 0.35 : 0.2) * progress,
-                                    ),
-                                    blurRadius: 16.0 * progress,
-                                    offset: Offset(0, 8.0 * progress),
-                                  )
-                                : null,
+                      onMore: () =>
+                          _showPlaylistMoreMenu(context, displaySongs),
+                      extraActions: [
+                        AnimatedBuilder(
+                          animation: FavoritePlaylistsService(),
+                          builder: (context, child) {
+                            final isFavorite = FavoritePlaylistsService()
+                                .isFavorite(widget.playlistId);
+                            return IconButton(
+                              tooltip: isFavorite
+                                  ? AppLocalizations.of(context)!
+                                      .removeFromFavorites
+                                  : AppLocalizations.of(context)!
+                                      .addToFavorites,
+                              icon: Icon(
+                                isFavorite
+                                    ? CupertinoIcons.heart_fill
+                                    : CupertinoIcons.heart,
+                                color: isFavorite ? Colors.red : null,
+                                size: 20,
+                              ),
+                              onPressed: _toggleFavorite,
+                            );
+                          },
+                        ),
+                        if (!isOffline) _buildDownloadButton(context),
+                      ],
+                      replacementActionBar: _isSelecting
+                          ? Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                IconButton(
+                                  tooltip: _selectedIndices.length ==
+                                          baseSongs.length
+                                      ? 'Deselect all'
+                                      : 'Select all',
+                                  icon: Icon(
+                                    _selectedIndices.length ==
+                                            baseSongs.length
+                                        ? CupertinoIcons.checkmark_square
+                                        : CupertinoIcons.square,
+                                  ),
+                                  onPressed: _toggleSelectAll,
+                                ),
+                                IconButton(
+                                  tooltip: AppLocalizations.of(context)!
+                                      .removeSelected,
+                                  icon: const Icon(CupertinoIcons.trash),
+                                  color: _selectedIndices.isNotEmpty
+                                      ? Colors.red
+                                      : null,
+                                  onPressed: _selectedIndices.isNotEmpty
+                                      ? _removeSelected
+                                      : null,
+                                ),
+                                TextButton(
+                                  onPressed: _toggleSelectMode,
+                                  child: Text(
+                                      AppLocalizations.of(context)!.done),
+                                ),
+                              ],
+                            )
+                          : null,
+                    ),
+                  ),
+                  if (baseSongs.isEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 60),
+                        child: Center(
+                          child: Text(
+                            'No songs in this playlist',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: AppTheme.lightSecondaryText,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            actions: [
-              if (_isSelecting) ...[
-                IconButton(
-                  tooltip:
-                      _selectedIndices.length == (_playlist?.songs?.length ?? 0)
-                          ? 'Deselect all'
-                          : 'Select all',
-                  icon: Icon(
-                    _selectedIndices.length == (_playlist?.songs?.length ?? 0)
-                        ? CupertinoIcons.checkmark_square
-                        : CupertinoIcons.square,
-                  ),
-                  onPressed: _toggleSelectAll,
-                ),
-                IconButton(
-                  tooltip: AppLocalizations.of(context)!.removeSelected,
-                  icon: const Icon(CupertinoIcons.trash),
-                  color: _selectedIndices.isNotEmpty ? Colors.red : null,
-                  onPressed:
-                      _selectedIndices.isNotEmpty ? _removeSelected : null,
-                ),
-              ] else ...[
-                IconButton(
-                  tooltip: AppLocalizations.of(context)!.searchInPlaylist,
-                  icon: Icon(_showSearch
-                      ? CupertinoIcons.search_circle_fill
-                      : CupertinoIcons.search),
-                  onPressed: () {
-                    setState(() {
-                      _showSearch = !_showSearch;
-                      if (!_showSearch) _searchQuery = '';
-                    });
-                  },
-                ),
-                PopupMenuButton<String>(
-                  icon: const Icon(CupertinoIcons.ellipsis_circle),
-                  tooltip: AppLocalizations.of(context)!.moreOptions,
-                  onSelected: (value) {
-                    if (value == 'queue_all') {
-                      final songs = _playlist?.songs ?? [];
-                      final playerProvider =
-                          Provider.of<PlayerProvider>(context, listen: false);
-                      for (final s in songs) {
-                        playerProvider.addToQueue(s);
-                      }
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                            content: Text(AppLocalizations.of(context)!
-                                .songsAddedToQueue(songs.length))),
-                      );
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: 'queue_all',
-                      child: Row(
-                        children: [
-                          const Icon(CupertinoIcons.text_badge_plus, size: 18),
-                          const SizedBox(width: 12),
-                          Text(AppLocalizations.of(context)!.addAllToQueue),
-                        ],
+                    )
+                  else if (_isSelecting)
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final song = baseSongs[index];
+                          final isSelected =
+                              _selectedIndices.contains(index);
+                          return CheckboxListTile(
+                            key: ValueKey('sel_${song.id}_$index'),
+                            value: isSelected,
+                            onChanged: (_) => _toggleSelection(index),
+                            activeColor:
+                                Theme.of(context).colorScheme.primary,
+                            controlAffinity:
+                                ListTileControlAffinity.leading,
+                            contentPadding:
+                                const EdgeInsets.only(left: 4, right: 16),
+                            title: Text(
+                              song.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              song.artist ?? '',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            secondary: IconButton(
+                              icon:
+                                  const Icon(CupertinoIcons.trash, size: 20),
+                              color: Colors.red,
+                              tooltip: AppLocalizations.of(context)!
+                                  .removeFromPlaylist,
+                              onPressed: () async {
+                                setState(
+                                    () => _selectedIndices.remove(index));
+                                await _removeSongFromPlaylist(index);
+                              },
+                            ),
+                          );
+                        },
+                        childCount: baseSongs.length,
+                      ),
+                    )
+                  else
+                    SliverFixedExtentList(
+                      itemExtent: 68.0,
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final song = displaySongs[index];
+                          final tile = SongTile(
+                            song: song,
+                            playlist: displaySongs,
+                            index: index,
+                            showArtist: true,
+                          );
+                          return Dismissible(
+                            key: ValueKey('${song.id}_$index'),
+                            direction: DismissDirection.endToStart,
+                            background: Container(
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.only(right: 20),
+                              color: Colors.red,
+                              child: const Icon(
+                                CupertinoIcons.trash,
+                                color: Colors.white,
+                              ),
+                            ),
+                            onDismissed: (_) {
+                              final originalIndex =
+                                  _playlist!.songs!.indexOf(song);
+                              if (originalIndex != -1) {
+                                _removeSongFromPlaylist(originalIndex);
+                              }
+                            },
+                            child: tile,
+                          );
+                        },
+                        childCount: displaySongs.length,
                       ),
                     ),
-                  ],
-                ),
-                AnimatedBuilder(
-                  animation: FavoritePlaylistsService(),
-                  builder: (context, child) {
-                    final isFavorite = FavoritePlaylistsService()
-                        .isFavorite(widget.playlistId);
-                    return IconButton(
-                      tooltip: isFavorite
-                          ? AppLocalizations.of(context)!.removeFromFavorites
-                          : AppLocalizations.of(context)!.addToFavorites,
-                      icon: Icon(
-                        isFavorite
-                            ? CupertinoIcons.heart_fill
-                            : CupertinoIcons.heart,
-                        color: isFavorite ? Colors.red : null,
-                      ),
-                      onPressed: _toggleFavorite,
-                    );
-                  },
-                ),
-                IconButton(
-                  tooltip: AppLocalizations.of(context)!.reorderSongs,
-                  icon: const Icon(CupertinoIcons.arrow_up_arrow_down),
-                  onPressed:
-                      _playlist!.songs != null && _playlist!.songs!.length > 1
-                          ? _toggleReorderMode
-                          : null,
-                ),
-                IconButton(
-                  tooltip: AppLocalizations.of(context)!.selectSongs,
-                  icon: const Icon(CupertinoIcons.checkmark_circle),
-                  onPressed: _toggleSelectMode,
-                ),
-                if (!isOffline) _buildDownloadButton(context),
-              ],
-            ],
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    _playlist!.name,
-                    style: theme.textTheme.headlineMedium,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${AppLocalizations.of(context)!.songsCount(_playlist!.songs?.length ?? 0)} • ${_playlist!.formattedDuration}',
-                    style: theme.textTheme.bodySmall,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _PlayButton(
-                          icon: CupertinoIcons.play_fill,
-                          label: AppLocalizations.of(context)!.play,
-                          onTap: () => _playAll(),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _PlayButton(
-                          icon: CupertinoIcons.shuffle,
-                          label: AppLocalizations.of(context)!.shuffle,
-                          onTap: () => _playAll(shuffle: true),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (_showSearch) ...[
-                    const SizedBox(height: 16),
-                    CupertinoSearchTextField(
-                      placeholder: AppLocalizations.of(context)!.filterSongs,
-                      style: TextStyle(
-                          color: isDark ? Colors.white : Colors.black),
-                      onChanged: (val) {
-                        setState(() {
-                          _searchQuery = val.trim().toLowerCase();
-                        });
-                      },
-                    ),
-                  ],
-                  const SizedBox(height: 24),
+                  const SliverToBoxAdapter(child: SizedBox(height: 120)),
                 ],
               ),
             ),
           ),
-          const SliverToBoxAdapter(child: Divider()),
-          if (_playlist!.songs?.isEmpty ?? true)
-            SliverToBoxAdapter(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 40),
-                  child: Text(
-                    'No songs in this playlist',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.lightSecondaryText,
-                    ),
-                  ),
-                ),
-              ),
-            )
-          else if (_isSelecting)
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final song = _playlist!.songs![index];
-                  final isSelected = _selectedIndices.contains(index);
-                  return CheckboxListTile(
-                    key: ValueKey('sel_${song.id}_$index'),
-                    value: isSelected,
-                    onChanged: (_) => _toggleSelection(index),
-                    activeColor: Theme.of(context).colorScheme.primary,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: const EdgeInsets.only(
-                      left: 4,
-                      right: 16,
-                    ),
-                    title: Text(
-                      song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Text(
-                      song.artist ?? '',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    secondary: IconButton(
-                      icon: const Icon(CupertinoIcons.trash, size: 20),
-                      color: Colors.red,
-                      tooltip: AppLocalizations.of(context)!.removeFromPlaylist,
-                      onPressed: () async {
-                        setState(() => _selectedIndices.remove(index));
-                        await _removeSongFromPlaylist(index);
-                      },
-                    ),
-                  );
-                },
-                childCount: _playlist!.songs!.length,
-              ),
-            )
-          else
-            Builder(
-              builder: (context) {
-                final allSongs = _playlist!.songs!;
-                final displaySongs = _searchQuery.isEmpty
-                    ? allSongs
-                    : allSongs
-                        .where((s) =>
-                            s.title.toLowerCase().contains(_searchQuery) ||
-                            (s.artist?.toLowerCase().contains(_searchQuery) ??
-                                false))
-                        .toList();
-
-                return SliverFixedExtentList(
-                  itemExtent: 68.0,
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final song = displaySongs[index];
-                      final tile = SongTile(
-                        song: song,
-                        playlist: displaySongs,
-                        index: index,
-                        showArtist: true,
-                      );
-                      return Dismissible(
-                        key: ValueKey('${song.id}_$index'),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 20),
-                          color: Colors.red,
-                          child: const Icon(
-                            CupertinoIcons.trash,
-                            color: Colors.white,
-                          ),
-                        ),
-                        onDismissed: (_) {
-                          final originalIndex = _playlist!.songs!.indexOf(song);
-                          if (originalIndex != -1) {
-                            _removeSongFromPlaylist(originalIndex);
-                          }
-                        },
-                        child: tile,
-                      );
-                    },
-                    childCount: displaySongs.length,
-                  ),
-                );
-              },
+          if (!_isSelecting)
+            SongListSearchBar(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
             ),
-          const SliverToBoxAdapter(child: SizedBox(height: 150)),
         ],
       ),
     );

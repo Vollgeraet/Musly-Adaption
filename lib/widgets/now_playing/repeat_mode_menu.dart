@@ -17,8 +17,8 @@ class RepeatModeMenu extends StatefulWidget {
   static Future<void> show(BuildContext context, PlayerProvider player) {
     return showFloatingPanel(
       context,
+      alignment: Alignment.center,
       builder: (ctx) => RepeatModeMenu(player: player),
-      maxHeightFraction: 0.6,
     );
   }
 

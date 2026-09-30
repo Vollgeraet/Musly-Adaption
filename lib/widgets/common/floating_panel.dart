@@ -1,20 +1,29 @@
 import 'package:flutter/material.dart';
 
+/// Seitenabstand links/rechts in Bruchteilen der Bildschirmbreite
+/// (0.075 => Panel ist 85 % so breit wie der Bildschirm). Zentral
+/// einstellbar, falls die Panels breiter/schmaler wirken sollen.
+const double kFloatingPanelSideMargin = 0.075;
+
+/// Oberer und unterer Abstand in Bruchteilen der Bildschirmhöhe. Der
+/// untere Abstand ist so gewählt, dass die Navigationsleiste ungefähr zur
+/// Hälfte unter dem Panel sichtbar bleibt.
+const double kFloatingPanelTopMargin = 0.09;
+const double kFloatingPanelBottomMargin = 0.045;
+
 /// Zeigt ein "schwebendes Panel": erscheint sofort ohne Slide-/Fade-
-/// Animation, hat auf allen vier Seiten etwas Rand zum Bildschirmrand
-/// (Hintergrund bleibt sichtbar), lässt sich NICHT durch Wischen oder
-/// Antippen des Hintergrunds schließen - nur über die System-Zurück-
-/// Geste/-Taste (die jede Route unabhängig von barrierDismissible
-/// schließt) oder einen expliziten Schließen-Button im Inhalt selbst.
+/// Animation, hat auf allen vier Seiten Rand zum Bildschirmrand
+/// (Hintergrund und Navigationsleiste bleiben teilweise sichtbar), lässt
+/// sich NICHT durch Wischen oder Antippen des Hintergrunds schließen -
+/// nur über die System-Zurück-Geste/-Taste oder einen expliziten
+/// Schließen-Button im Inhalt selbst.
 ///
-/// Wird für alle "Einstellungen"-artigen Overlays verwendet (Titel-
-/// Infos, Song-Optionsmenü, Now-Playing "..."-Menü, Sortieren, usw.) -
-/// mit Ausnahme reiner Einstellungs-Screens wie den Alle-Titel-
-/// Sucheinstellungen, die als normaler Vollbild-Screen bleiben.
+/// [alignment] bestimmt die vertikale Position: unten (Standard) oder
+/// z. B. [Alignment.center] für kleine Auswahl-Dialoge.
 Future<T?> showFloatingPanel<T>(
   BuildContext context, {
   required WidgetBuilder builder,
-  double maxHeightFraction = 0.82,
+  Alignment alignment = Alignment.bottomCenter,
   bool useRootNavigator = true,
 }) {
   return showGeneralDialog<T>(
@@ -25,15 +34,19 @@ Future<T?> showFloatingPanel<T>(
     barrierColor: Colors.black54,
     transitionDuration: Duration.zero,
     pageBuilder: (dialogContext, anim1, anim2) {
-      final screenSize = MediaQuery.of(dialogContext).size;
+      final size = MediaQuery.of(dialogContext).size;
+      final sideMargin = size.width * kFloatingPanelSideMargin;
+      final topMargin = size.height * kFloatingPanelTopMargin;
+      final bottomMargin = size.height * kFloatingPanelBottomMargin;
       return Align(
-        alignment: Alignment.bottomCenter,
+        alignment: alignment,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 40, 16, 24),
+          padding: EdgeInsets.fromLTRB(
+              sideMargin, topMargin, sideMargin, bottomMargin),
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              maxHeight: screenSize.height * maxHeightFraction,
-              maxWidth: screenSize.width - 32,
+              maxHeight: size.height - topMargin - bottomMargin,
+              maxWidth: size.width - 2 * sideMargin,
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(20),

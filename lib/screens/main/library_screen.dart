@@ -738,7 +738,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
 
     return SliverPadding(
-      padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 8),
+      padding: EdgeInsets.fromLTRB(hPad, 4, hPad, 8),
       sliver: SliverList.builder(
         itemCount: items.length,
         itemBuilder: (context, index) {
@@ -1235,7 +1235,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     required VoidCallback onTap,
   }) {
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(vertical: 4),
+      contentPadding: const EdgeInsets.symmetric(vertical: 2.8),
       leading: Container(
         width: 54,
         height: 54,
