@@ -238,7 +238,7 @@ class _SongCollectionScreenState extends State<SongCollectionScreen> {
           builder: (sheetContext, setSheetState) {
             return Container(
               decoration: BoxDecoration(
-                color: isDark ? AppTheme.darkSurface : Colors.white,
+                color: isDark ? AppTheme.darkElevated : Colors.white,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: SafeArea(
@@ -304,7 +304,7 @@ class _SongCollectionScreenState extends State<SongCollectionScreen> {
       context,
       builder: (sheetContext) => Container(
         decoration: BoxDecoration(
-          color: isDark ? AppTheme.darkSurface : Colors.white,
+          color: isDark ? AppTheme.darkElevated : Colors.white,
           borderRadius: BorderRadius.circular(20),
         ),
         child: SafeArea(
@@ -554,6 +554,10 @@ class _SongCollectionScreenState extends State<SongCollectionScreen> {
           SongListSearchBar(
             controller: _searchController,
             onChanged: _onSearchChanged,
+            // In die Navigationsleiste eingebetteter Tab: die
+            // Bottom-Nav-Leiste sitzt bereits darunter, daher keine
+            // zusätzliche SafeArea hier (siehe Dokumentation am Widget).
+            applySafeArea: false,
           ),
         ],
       ),

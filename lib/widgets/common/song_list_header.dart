@@ -124,10 +124,20 @@ class SongListSearchBar extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
 
+  /// True (Standard) für Screens, die als eigener Vollbild-Screen
+  /// gepusht werden (Playlists, Favoriten, ...) - dort sitzt die
+  /// Suchleiste am echten Bildschirmrand und braucht die Geräte-
+  /// Sicherheitszone. False für den in die Navigationsleiste
+  /// eingebetteten "Alle Songs"-Tab, wo darunter bereits die feste
+  /// Bottom-Nav-Leiste sitzt - dort würde SafeArea nur einen
+  /// zusätzlichen Leerraum in Höhe der Suchleiste selbst erzeugen.
+  final bool applySafeArea;
+
   const SongListSearchBar({
     super.key,
     required this.controller,
     required this.onChanged,
+    this.applySafeArea = true,
   });
 
   @override
@@ -137,9 +147,7 @@ class SongListSearchBar extends StatelessWidget {
       valueListenable: PlayerUiSettingsService().showListSearchBarNotifier,
       builder: (context, showSearchBar, _) {
         if (!showSearchBar) return const SizedBox.shrink();
-        return SafeArea(
-          top: false,
-          child: Padding(
+        final field = Padding(
             padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
             child: TextField(
               controller: controller,
@@ -161,8 +169,8 @@ class SongListSearchBar extends StatelessWidget {
                     : Colors.grey.withValues(alpha: 0.1),
               ),
             ),
-          ),
-        );
+          );
+        return applySafeArea ? SafeArea(top: false, child: field) : field;
       },
     );
   }
@@ -182,7 +190,7 @@ Future<void> showSongSortPanel(
       final primary = Theme.of(panelContext).colorScheme.primary;
       return Container(
         decoration: BoxDecoration(
-          color: isDark ? AppTheme.darkSurface : Colors.white,
+          color: isDark ? AppTheme.darkElevated : Colors.white,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Column(

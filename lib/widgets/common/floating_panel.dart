@@ -9,7 +9,7 @@ const double kFloatingPanelSideMargin = 0.075;
 /// untere Abstand ist so gewählt, dass die Navigationsleiste ungefähr zur
 /// Hälfte unter dem Panel sichtbar bleibt.
 const double kFloatingPanelTopMargin = 0.09;
-const double kFloatingPanelBottomMargin = 0.045;
+const double kFloatingPanelBottomMargin = 0.095;
 
 /// Zeigt ein "schwebendes Panel": erscheint sofort ohne Slide-/Fade-
 /// Animation, hat auf allen vier Seiten Rand zum Bildschirmrand

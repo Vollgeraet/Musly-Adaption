@@ -113,7 +113,7 @@ class SongInfoModal extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.darkSurface : Colors.white,
+        color: isDark ? AppTheme.darkElevated : Colors.white,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(

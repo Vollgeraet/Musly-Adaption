@@ -3,8 +3,14 @@ import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../services/subsonic_service.dart';
 import '../../services/offline_service.dart';
+import '../../services/recommendation_service.dart';
 import '../../providers/player_provider.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/navigation_helper.dart';
+import '../../utils/song_menu_actions.dart';
+import '../../utils/song_sorting.dart';
+import '../../widgets/common/floating_panel.dart';
+import '../../widgets/common/song_list_header.dart';
 import '../../widgets/widgets.dart';
 import '../../l10n/app_localizations.dart';
 import '../detail/album_screen.dart';
@@ -22,11 +28,20 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   List<Album> _favoriteAlbums = [];
   bool _isLoading = true;
   int _selectedTab = 0;
+  SongSortOption _currentSort = SongSortOption.titleAsc;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _loadFavorites();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadFavorites() async {
@@ -50,17 +65,24 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     }
   }
 
-  void _playAll({bool shuffle = false}) {
-    if (_favoriteSongs.isEmpty) return;
+  void _onSearchChanged(String value) {
+    setState(() => _searchQuery = value.trim().toLowerCase());
+  }
 
+  void _playAll(List<Song> songs, {bool shuffle = false}) {
+    if (songs.isEmpty) return;
     final player = Provider.of<PlayerProvider>(context, listen: false);
-    final songs = List<Song>.from(_favoriteSongs);
+    final list = List<Song>.from(songs);
+    if (shuffle) list.shuffle();
+    player.playSong(list.first, playlist: list, startIndex: 0);
+  }
 
-    if (shuffle) {
-      songs.shuffle();
-    }
-
-    player.playSong(songs.first, playlist: songs, startIndex: 0);
+  void _playRandomSong(List<Song> songs) {
+    if (songs.isEmpty) return;
+    final player = Provider.of<PlayerProvider>(context, listen: false);
+    final index = DateTime.now().millisecondsSinceEpoch % songs.length;
+    final song = songs[index];
+    player.playSong(song, playlist: songs, startIndex: index);
   }
 
   Future<void> _downloadAllFavorites() async {
@@ -85,6 +107,103 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     }
   }
 
+  void _showMoreMenu(BuildContext context, List<Song> songs) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dividerColor = isDark ? AppTheme.darkDivider : AppTheme.lightDivider;
+    final player = Provider.of<PlayerProvider>(context, listen: false);
+
+    showFloatingPanel(
+      context,
+      builder: (sheetContext) => Container(
+        decoration: BoxDecoration(
+          color: isDark ? AppTheme.darkElevated : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ListMenuTile(
+                        icon: Icons.play_arrow_rounded,
+                        title: 'Abspielen',
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          _playAll(songs, shuffle: false);
+                        },
+                      ),
+                      ListMenuTile(
+                        icon: CupertinoIcons.arrow_down_circle,
+                        title: AppLocalizations.of(context)!.downloadAll,
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          _downloadAllFavorites();
+                        },
+                      ),
+                      Divider(
+                          height: 17,
+                          indent: 16,
+                          endIndent: 16,
+                          color: dividerColor),
+                      ListMenuTile(
+                        icon: Icons.playlist_play_rounded,
+                        title: 'Nach dem aktuellen Titel spielen',
+                        onTap: () async {
+                          Navigator.pop(sheetContext);
+                          for (final s in songs.reversed) {
+                            await player.addToQueueNext(s);
+                          }
+                        },
+                      ),
+                      ListMenuTile(
+                        icon: Icons.queue_music_rounded,
+                        title: 'Zur aktuellen Warteschlange hinzufügen',
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          player.addAllToQueue(songs);
+                        },
+                      ),
+                      ListMenuTile(
+                        icon: Icons.library_add_rounded,
+                        title: 'Zu Wiedergabelisten hinzufügen',
+                        enabled: false,
+                      ),
+                      Divider(
+                          height: 17,
+                          indent: 16,
+                          endIndent: 16,
+                          color: dividerColor),
+                      ListMenuTile(
+                        icon: Icons.speed_rounded,
+                        title: 'Wiedergabegeschwindigkeit und Tonhöhe',
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          SongMenuActions.showSpeedPitchDialog(context, player);
+                        },
+                      ),
+                      ListMenuTile(
+                        icon: Icons.share_rounded,
+                        title: 'Teilen',
+                        enabled: false,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -92,14 +211,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.favorites),
-        actions: [
-          if (!_isLoading && _favoriteSongs.isNotEmpty && _selectedTab == 0)
-            IconButton(
-              icon: const Icon(CupertinoIcons.arrow_down_circle),
-              tooltip: l10n.downloadAllFavorites,
-              onPressed: _downloadAllFavorites,
-            ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: PillTabBar(
@@ -119,88 +230,103 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   Widget _buildSongsList() {
     final l10n = AppLocalizations.of(context)!;
-    if (_favoriteSongs.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.favorite_border_rounded,
-                size: 64, color: Colors.grey),
-            const SizedBox(height: 16),
-            Text(l10n.noFavoriteSongsYet),
-          ],
+    final recProfiles =
+        Provider.of<RecommendationService>(context, listen: false).profiles;
+    final searchedSongs = _searchQuery.isEmpty
+        ? _favoriteSongs
+        : _favoriteSongs
+            .where((s) =>
+                s.title.toLowerCase().contains(_searchQuery) ||
+                (s.artist?.toLowerCase().contains(_searchQuery) ?? false))
+            .toList();
+    final displaySongs = sortSongs(searchedSongs, _currentSort, recProfiles);
+    final totalDuration = Duration(
+      seconds:
+          _favoriteSongs.fold<int>(0, (sum, s) => sum + (s.duration ?? 0)),
+    );
+
+    return Column(
+      children: [
+        Expanded(
+          child: CustomScrollView(
+            physics: const ClampingScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(
+                child: SongListHeader(
+                  title: l10n.favorites,
+                  songCount: _favoriteSongs.length,
+                  totalDuration: totalDuration,
+                  onRandom: () => _playRandomSong(displaySongs),
+                  onSort: () => showSongSortPanel(
+                    context,
+                    current: _currentSort,
+                    onSelected: (opt) => setState(() => _currentSort = opt),
+                  ),
+                  onMore: () => _showMoreMenu(context, displaySongs),
+                ),
+              ),
+              if (_favoriteSongs.isEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 60),
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.favorite_border_rounded,
+                              size: 64, color: Colors.grey),
+                          const SizedBox(height: 16),
+                          Text(l10n.noFavoriteSongsYet),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              else
+                SliverFixedExtentList(
+                  itemExtent: 68.0,
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final song = displaySongs[index];
+                      final tile = SongTile(
+                        key: ValueKey(song.id),
+                        song: song,
+                        playlist: displaySongs,
+                        index: index,
+                        showAlbum: true,
+                      );
+                      return Dismissible(
+                        key: ValueKey('fav_${song.id}'),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          color: Colors.red,
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 20),
+                          child: const Icon(CupertinoIcons.heart_slash,
+                              color: Colors.white),
+                        ),
+                        onDismissed: (_) {
+                          final originalIndex =
+                              _favoriteSongs.indexOf(song);
+                          if (originalIndex != -1) {
+                            _removeFavorite(context, song, originalIndex);
+                          }
+                        },
+                        child: tile,
+                      );
+                    },
+                    childCount: displaySongs.length,
+                  ),
+                ),
+              const SliverToBoxAdapter(child: SizedBox(height: 120)),
+            ],
+          ),
         ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 150),
-      itemCount: _favoriteSongs.length + 1,
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => _playAll(shuffle: false),
-                    icon: const Icon(CupertinoIcons.play_fill, size: 16),
-                    label: Text(l10n.playAll),
-                    style: FilledButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _playAll(shuffle: true),
-                    icon: const Icon(CupertinoIcons.shuffle, size: 16),
-                    label: Text(l10n.shuffle),
-                    style: OutlinedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filledTonal(
-                  onPressed: _downloadAllFavorites,
-                  icon: const Icon(CupertinoIcons.arrow_down_circle, size: 18),
-                  tooltip: l10n.downloadAll,
-                  style: IconButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        final songIndex = index - 1;
-        final song = _favoriteSongs[songIndex];
-
-        return Dismissible(
-          key: Key('fav_${song.id}'),
-          direction: DismissDirection.endToStart,
-          background: Container(
-            color: Colors.red,
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.only(right: 20),
-            child: const Icon(CupertinoIcons.heart_slash, color: Colors.white),
-          ),
-          onDismissed: (_) => _removeFavorite(context, song, songIndex),
-          child: SongTile(
-            song: song,
-            playlist: _favoriteSongs,
-            index: songIndex,
-            showAlbum: true,
-          ),
-        );
-      },
+        SongListSearchBar(
+          controller: _searchController,
+          onChanged: _onSearchChanged,
+        ),
+      ],
     );
   }
 

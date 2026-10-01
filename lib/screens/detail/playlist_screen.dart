@@ -142,7 +142,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
       context,
       builder: (sheetContext) => Container(
         decoration: BoxDecoration(
-          color: isDark ? AppTheme.darkSurface : Colors.white,
+          color: isDark ? AppTheme.darkElevated : Colors.white,
           borderRadius: BorderRadius.circular(20),
         ),
         child: SafeArea(
