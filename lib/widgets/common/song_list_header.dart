@@ -124,20 +124,22 @@ class SongListSearchBar extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
 
-  /// True (Standard) für Screens, die als eigener Vollbild-Screen
-  /// gepusht werden (Playlists, Favoriten, ...) - dort sitzt die
-  /// Suchleiste am echten Bildschirmrand und braucht die Geräte-
-  /// Sicherheitszone. False für den in die Navigationsleiste
-  /// eingebetteten "Alle Songs"-Tab, wo darunter bereits die feste
-  /// Bottom-Nav-Leiste sitzt - dort würde SafeArea nur einen
-  /// zusätzlichen Leerraum in Höhe der Suchleiste selbst erzeugen.
+  /// Standardmäßig false: Jeder Screen, der diese Suchleiste verwendet
+  /// (Tabs wie auch per NavigationHelper.push/pushInstant gepushte
+  /// Screens wie Playlists/Favoriten), läuft über denselben
+  /// "mobileNavigatorKey"-Navigator, der innerhalb von MainScreens
+  /// Spalte OBERHALB der immer sichtbaren Navigationsleiste sitzt - nie
+  /// am echten unteren Bildschirmrand. Eine eigene SafeArea hier würde
+  /// daher nur einen zusätzlichen Leerraum in Höhe der Suchleiste
+  /// selbst erzeugen. Nur auf true setzen, wenn ein Screen nachweislich
+  /// über einen anderen, echten Vollbild-Navigator angezeigt wird.
   final bool applySafeArea;
 
   const SongListSearchBar({
     super.key,
     required this.controller,
     required this.onChanged,
-    this.applySafeArea = true,
+    this.applySafeArea = false,
   });
 
   @override

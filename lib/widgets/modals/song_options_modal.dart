@@ -8,8 +8,10 @@ import '../../providers/player_provider.dart';
 import '../../services/subsonic_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/song_menu_actions.dart';
+import '../../screens/media/tag_editor_screen.dart';
 import '../common/floating_panel.dart';
 import 'song_info_modal.dart';
+import 'song_preview_panel.dart';
 
 class SongOptionsModal extends StatefulWidget {
   static Future<void> show(BuildContext context, Song song) {
@@ -112,11 +114,6 @@ class _SongOptionsModalState extends State<SongOptionsModal> {
                         Navigator.pop(context);
                       },
                     ),
-                    const _OptionTile(
-                      icon: Icons.playlist_add_rounded,
-                      title: 'Zu Warteschlange hinzufügen',
-                      enabled: false,
-                    ),
                     _OptionTile(
                       icon: Icons.library_add_rounded,
                       title: 'Zu Wiedergabelisten hinzufügen',
@@ -126,15 +123,25 @@ class _SongOptionsModalState extends State<SongOptionsModal> {
                       },
                     ),
                     Divider(height: 17, indent: 16, endIndent: 16, color: dividerColor),
-                    const _OptionTile(
+                    _OptionTile(
                       icon: Icons.play_circle_outline_rounded,
                       title: 'Vorschau',
-                      enabled: false,
+                      onTap: () {
+                        Navigator.pop(context);
+                        SongPreviewPanel.show(context, widget.song);
+                      },
                     ),
-                    const _OptionTile(
+                    _OptionTile(
                       icon: Icons.edit_note_rounded,
                       title: 'Tags bearbeiten',
-                      enabled: false,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.of(context, rootNavigator: true).push(
+                          MaterialPageRoute(
+                            builder: (_) => TagEditorScreen(song: widget.song),
+                          ),
+                        );
+                      },
                     ),
                     const _OptionTile(
                       icon: Icons.drive_file_move_rounded,

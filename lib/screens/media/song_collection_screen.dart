@@ -554,10 +554,6 @@ class _SongCollectionScreenState extends State<SongCollectionScreen> {
           SongListSearchBar(
             controller: _searchController,
             onChanged: _onSearchChanged,
-            // In die Navigationsleiste eingebetteter Tab: die
-            // Bottom-Nav-Leiste sitzt bereits darunter, daher keine
-            // zusätzliche SafeArea hier (siehe Dokumentation am Widget).
-            applySafeArea: false,
           ),
         ],
       ),

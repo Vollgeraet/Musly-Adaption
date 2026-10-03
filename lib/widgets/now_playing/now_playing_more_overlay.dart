@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/song.dart';
 import '../../providers/player_provider.dart';
+import '../../screens/media/tag_editor_screen.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/song_menu_actions.dart';
 import '../common/floating_panel.dart';
@@ -83,11 +84,6 @@ class NowPlayingMoreOverlay extends StatelessWidget {
                       },
                     ),
                     Divider(height: 17, indent: 16, endIndent: 16, color: dividerColor),
-                    const _Tile(
-                      icon: Icons.playlist_add_rounded,
-                      title: 'Zu Warteschlange hinzufügen',
-                      enabled: false,
-                    ),
                     _Tile(
                       icon: Icons.library_add_rounded,
                       title: 'Zu Wiedergabelisten hinzufügen',
@@ -97,10 +93,17 @@ class NowPlayingMoreOverlay extends StatelessWidget {
                       },
                     ),
                     Divider(height: 17, indent: 16, endIndent: 16, color: dividerColor),
-                    const _Tile(
+                    _Tile(
                       icon: Icons.edit_note_rounded,
                       title: 'Tags bearbeiten',
-                      enabled: false,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.of(context, rootNavigator: true).push(
+                          MaterialPageRoute(
+                            builder: (_) => TagEditorScreen(song: song),
+                          ),
+                        );
+                      },
                     ),
                     const _Tile(
                       icon: Icons.drive_file_move_rounded,

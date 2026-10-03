@@ -2841,6 +2841,13 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// Öffentlicher Zugriff auf [_buildAudioSourceForSong] für Dinge wie die
+  /// Song-Vorschau, die eine eigene, vom Haupt-Player unabhängige
+  /// AudioSource brauchen (lokal/offline/Stream/Transcoding-Logik bleibt
+  /// identisch zur normalen Wiedergabe).
+  Future<AudioSource> buildAudioSourceForSong(Song song) =>
+      _buildAudioSourceForSong(song);
+
   Future<AudioSource> _buildAudioSourceForSong(Song song) async {
     if (song.isLocal == true && song.path != null) {
       return AudioSource.uri(Uri.file(song.path!));
