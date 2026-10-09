@@ -27,6 +27,8 @@ class _AddServerScreenState extends State<AddServerScreen> {
   final _nameController = TextEditingController();
   final _urlController = TextEditingController();
   final _lanUrlController = TextEditingController();
+  final _tagEditorUrlController = TextEditingController();
+  final _tagEditorApiKeyController = TextEditingController();
   final _userController = TextEditingController();
   final _passController = TextEditingController();
 
@@ -61,6 +63,8 @@ class _AddServerScreenState extends State<AddServerScreen> {
     _nameController.dispose();
     _urlController.dispose();
     _lanUrlController.dispose();
+    _tagEditorUrlController.dispose();
+    _tagEditorApiKeyController.dispose();
     _userController.dispose();
     _passController.dispose();
     _clientCertPassController.dispose();
@@ -218,6 +222,12 @@ class _AddServerScreenState extends State<AddServerScreen> {
         profileName: profileName.isNotEmpty ? profileName : null,
         lanUrl: _lanUrlController.text.trim().isNotEmpty
             ? _lanUrlController.text.trim()
+            : null,
+        tagEditorUrl: _tagEditorUrlController.text.trim().isNotEmpty
+            ? _tagEditorUrlController.text.trim()
+            : null,
+        tagEditorApiKey: _tagEditorApiKeyController.text.trim().isNotEmpty
+            ? _tagEditorApiKeyController.text.trim()
             : null,
         allowSelfSignedCertificates: _allowSelfSigned,
         useLegacyAuth: _useLegacyAuth,
@@ -925,6 +935,39 @@ class _AddServerScreenState extends State<AddServerScreen> {
                 labelText: AppLocalizations.of(context)!.lanServerUrlOptional,
                 hintText: 'e.g. http://192.168.1.5:4533',
                 prefixIcon: const Icon(CupertinoIcons.wifi),
+                filled: true,
+                fillColor:
+                    isDark ? const Color(0xFF222222) : const Color(0xFFF3F4F6),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _tagEditorUrlController,
+              keyboardType: TextInputType.url,
+              decoration: InputDecoration(
+                labelText: 'Tag-Editor-URL (optional)',
+                hintText: 'e.g. https://tag-api.internal',
+                prefixIcon: const Icon(Icons.edit_note_rounded),
+                filled: true,
+                fillColor:
+                    isDark ? const Color(0xFF222222) : const Color(0xFFF3F4F6),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _tagEditorApiKeyController,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: 'Tag-Editor-API-Key (optional)',
+                prefixIcon: const Icon(Icons.vpn_key_rounded),
                 filled: true,
                 fillColor:
                     isDark ? const Color(0xFF222222) : const Color(0xFFF3F4F6),

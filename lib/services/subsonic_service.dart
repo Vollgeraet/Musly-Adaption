@@ -367,6 +367,67 @@ class SubsonicService {
     return '$activeBaseUrl/rest/$endpoint?$queryString';
   }
 
+  /// Stößt einen Bibliotheks-Scan auf dem Server an (Navidrome: nur mit
+  /// Admin-Rechten), damit geänderte Tags zeitnah sichtbar werden.
+  Future<void> startScan() async {
+    await _request('startScan');
+  }
+
+  /// Schickt geänderte Tags an den eigenen Tag-Editor-Dienst (api_server.py
+  /// auf dem Server). Navidrome selbst kann keine Tags schreiben - der
+  /// Dienst ändert die Datei direkt auf dem Server, ohne dass die
+  /// Audiodatei übertragen werden muss.
+  ///
+  /// [relativePath] ist der Pfad der Datei relativ zum Musikordner
+  /// (so wie ihn Navidrome pro Song liefert).
+  Future<void> editTags({
+    required String relativePath,
+    required Map<String, String> tags,
+  }) async {
+    final config = _config;
+    if (config == null) throw Exception('Server not configured');
+
+    final baseUrl = config.normalizedTagEditorUrl;
+    final apiKey = config.tagEditorApiKey?.trim();
+    if (baseUrl == null || apiKey == null || apiKey.isEmpty) {
+      throw Exception(
+          'Der Tag-Editor ist für diesen Server nicht eingerichtet (URL und API-Key fehlen).');
+    }
+
+    try {
+      await _dio.post(
+        '$baseUrl/edit-tags',
+        data: {'path': relativePath, 'tags': tags},
+        options: Options(
+          headers: {'X-Tag-Editor-Key': apiKey},
+          contentType: Headers.jsonContentType,
+          responseType: ResponseType.json,
+        ),
+      );
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      if (status == 401) {
+        throw Exception('Der API-Key des Tag-Editors ist falsch.');
+      }
+      if (status == 400) {
+        final data = e.response?.data;
+        final detail = (data is Map && data['error'] != null)
+            ? data['error'].toString()
+            : 'ungültige Anfrage';
+        throw Exception('Tag-Editor hat die Anfrage abgelehnt: $detail');
+      }
+      if (status != null && status >= 500) {
+        final data = e.response?.data;
+        final detail = (data is Map && data['error'] != null)
+            ? data['error'].toString()
+            : 'Serverfehler ($status)';
+        throw Exception('Tag-Editor-Fehler: $detail');
+      }
+      throw Exception(
+          'Tag-Editor nicht erreichbar. Prüfe URL und Netzwerk/VPN.');
+    }
+  }
+
   /// Liefert die jeweils "andere" konfigurierte Server-Adresse (LAN↔WAN),
   /// falls vorhanden - Grundlage für den automatischen Retry-Fallback in
   /// [_request], wenn die aktuell aktive Adresse fehlschlägt (z. B. DNS-

@@ -15,6 +15,8 @@ class ServerConfig {
   final String serverFamily;
   final String? apiToken;
   final String? userId;
+  final String? tagEditorUrl;
+  final String? tagEditorApiKey;
 
   ServerConfig({
     required this.serverUrl,
@@ -33,6 +35,8 @@ class ServerConfig {
     this.serverFamily = 'subsonic',
     this.apiToken,
     this.userId,
+    this.tagEditorUrl,
+    this.tagEditorApiKey,
   });
 
   bool get isJellyfin => serverFamily == 'jellyfin';
@@ -78,6 +82,8 @@ class ServerConfig {
       serverFamily: json['serverFamily'] as String? ?? 'subsonic',
       apiToken: json['apiToken'] as String?,
       userId: json['userId'] as String?,
+      tagEditorUrl: json['tagEditorUrl'] as String?,
+      tagEditorApiKey: json['tagEditorApiKey'] as String?,
     );
   }
 
@@ -99,6 +105,8 @@ class ServerConfig {
       'serverFamily': serverFamily,
       'apiToken': apiToken,
       'userId': userId,
+      'tagEditorUrl': tagEditorUrl,
+      'tagEditorApiKey': tagEditorApiKey,
     };
   }
 
@@ -119,6 +127,8 @@ class ServerConfig {
     String? serverFamily,
     String? apiToken,
     String? userId,
+    String? tagEditorUrl,
+    String? tagEditorApiKey,
   }) {
     return ServerConfig(
       serverUrl: serverUrl ?? this.serverUrl,
@@ -142,6 +152,8 @@ class ServerConfig {
       serverFamily: serverFamily ?? this.serverFamily,
       apiToken: apiToken ?? this.apiToken,
       userId: userId ?? this.userId,
+      tagEditorUrl: tagEditorUrl ?? this.tagEditorUrl,
+      tagEditorApiKey: tagEditorApiKey ?? this.tagEditorApiKey,
     );
   }
 
@@ -167,6 +179,22 @@ class ServerConfig {
     }
     return url;
   }
+
+  String? get normalizedTagEditorUrl {
+    if (tagEditorUrl == null || tagEditorUrl!.trim().isEmpty) return null;
+    String url = tagEditorUrl!.trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://$url';
+    }
+    if (url.endsWith('/')) {
+      url = url.substring(0, url.length - 1);
+    }
+    return url;
+  }
+
+  bool get hasTagEditor =>
+      normalizedTagEditorUrl != null &&
+      (tagEditorApiKey?.trim().isNotEmpty ?? false);
 
   bool get isValid {
     if (isYoutube || isLocal) {

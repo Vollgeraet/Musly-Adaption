@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/song.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/library_provider.dart';
 import '../../services/subsonic_service.dart';
 import '../../theme/app_theme.dart';
 
-/// Vollbild-Tag-Editor (Musicolet-Vorbild). Die Oberfläche ist komplett
-/// nutzbar, aber ehrlich begrenzt beim Speichern:
-/// - Navidrome/Subsonic unterstützt das Schreiben von Metadaten über die
-///   Standard-API nicht - für Server-Songs wird nichts gespeichert.
-/// - Für lokale Dateien fehlt aktuell noch ein Tag-Schreib-Paket
-///   (z. B. audiotags) in pubspec.yaml; auch hier wird noch nichts
-///   dauerhaft gespeichert, um keine falschen Erfolgsmeldungen zu zeigen.
+/// Vollbild-Tag-Editor (Musicolet-Vorbild).
+///
+/// Server-Songs (Navidrome): Navidrome selbst kann keine Tags schreiben.
+/// Gespeichert wird deshalb über den eigenen Tag-Editor-Dienst auf dem
+/// Server (api_server.py): Musly schickt nur die geänderten Felder als
+/// JSON, der Dienst ändert die Datei direkt auf dem Server - die
+/// Audiodatei wird nie übertragen.
+///
+/// Lokale Dateien: Hierfür fehlt noch ein Tag-Schreib-Paket in
+/// pubspec.yaml, daher wird dort ehrlich nichts gespeichert.
 class TagEditorScreen extends StatefulWidget {
   final Song song;
 
@@ -33,6 +38,14 @@ class _TagEditorScreenState extends State<TagEditorScreen> {
   late final TextEditingController _year;
   late final TextEditingController _comment;
 
+  /// Ausgangswerte beim Öffnen, je Schlüssel des Tag-Dienstes. Nur Felder,
+  /// die sich dagegen geändert haben, werden gesendet - sonst würden leere
+  /// Felder (z. B. Album-Künstler, die Musly nicht kennt) vorhandene Tags
+  /// in der Datei löschen.
+  late final Map<String, String> _initial;
+
+  bool _saving = false;
+
   @override
   void initState() {
     super.initState();
@@ -48,6 +61,7 @@ class _TagEditorScreenState extends State<TagEditorScreen> {
     _discNumber = TextEditingController();
     _year = TextEditingController(text: s.year?.toString() ?? '');
     _comment = TextEditingController();
+    _initial = _currentValues();
   }
 
   @override
@@ -70,23 +84,33 @@ class _TagEditorScreenState extends State<TagEditorScreen> {
     super.dispose();
   }
 
-  void _save() {
-    final isLocal = widget.song.isLocal;
-    showDialog(
+  Map<String, String> _currentValues() => {
+        'title': _title.text.trim(),
+        'album': _album.text.trim(),
+        'artist': _artist.text.trim(),
+        'albumartist': _albumArtist.text.trim(),
+        'composer': _composer.text.trim(),
+        'genre': _genre.text.trim(),
+        'tracknumber': _track.text.trim(),
+        'discnumber': _discNumber.text.trim(),
+        'date': _year.text.trim(),
+      };
+
+  Map<String, String> _changedTags() {
+    final current = _currentValues();
+    final changed = <String, String>{};
+    current.forEach((key, value) {
+      if (value != (_initial[key] ?? '')) changed[key] = value;
+    });
+    return changed;
+  }
+
+  Future<void> _showInfo(String title, String message) {
+    return showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Nicht gespeichert'),
-        content: Text(
-          isLocal
-              ? 'Für lokale Dateien fehlt noch ein Paket zum Schreiben von '
-                  'Tags (z. B. audiotags) in diesem Projekt. Die Oberfläche '
-                  'ist fertig, aber ohne dieses Paket kann ich die Datei '
-                  'nicht wirklich verändern.'
-              : 'Dieser Song liegt auf deinem Navidrome-Server. Navidrome '
-                  'unterstützt das Bearbeiten von Metadaten über die '
-                  'normale Subsonic-API nicht, daher kann Musly hier keine '
-                  'Änderungen speichern.',
-        ),
+        title: Text(title),
+        content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -97,7 +121,141 @@ class _TagEditorScreenState extends State<TagEditorScreen> {
     );
   }
 
-  Widget _field(String label, TextEditingController controller) {
+  /// Fragt URL und API-Key des Tag-Editor-Dienstes ab und speichert sie
+  /// für den aktuellen Server. Gibt true zurück, wenn gespeichert wurde.
+  Future<bool> _askForTagEditorSettings() async {
+    final urlController = TextEditingController(text: 'https://');
+    final keyController = TextEditingController();
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Tag-Editor einrichten'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Für diesen Server ist noch kein Tag-Editor-Dienst hinterlegt.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: urlController,
+              keyboardType: TextInputType.url,
+              decoration: const InputDecoration(
+                labelText: 'Tag-Editor-URL',
+                hintText: 'https://tag-api.internal',
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: keyController,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'API-Key'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Abbrechen'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Speichern'),
+          ),
+        ],
+      ),
+    );
+
+    final url = urlController.text.trim();
+    final key = keyController.text.trim();
+    urlController.dispose();
+    keyController.dispose();
+
+    if (saved != true || url.length <= 8 || key.isEmpty) return false;
+    if (!mounted) return false;
+
+    await Provider.of<AuthProvider>(context, listen: false)
+        .updateTagEditorSettings(url: url, apiKey: key);
+    return true;
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    final song = widget.song;
+
+    if (song.isLocal) {
+      await _showInfo(
+        'Nicht gespeichert',
+        'Für lokale Dateien fehlt noch ein Paket zum Schreiben von Tags '
+            '(z. B. audiotags) in diesem Projekt. Ohne dieses Paket kann '
+            'Musly die Datei nicht verändern.',
+      );
+      return;
+    }
+
+    final changed = _changedTags();
+    if (changed.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Keine Änderungen vorgenommen.')),
+      );
+      return;
+    }
+
+    final path = song.path;
+    if (path == null || path.isEmpty) {
+      await _showInfo(
+        'Dateipfad unbekannt',
+        'Der Server hat für diesen Song keinen Dateipfad geliefert, daher '
+            'weiß der Tag-Editor nicht, welche Datei er ändern soll.',
+      );
+      return;
+    }
+
+    final subsonic = Provider.of<SubsonicService>(context, listen: false);
+    if (subsonic.config?.hasTagEditor != true) {
+      final configured = await _askForTagEditorSettings();
+      if (!configured || !mounted) return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final library = Provider.of<LibraryProvider>(context, listen: false);
+
+    setState(() => _saving = true);
+    try {
+      await subsonic.editTags(relativePath: path, tags: changed);
+
+      // Best effort: Navidrome die Änderung zeitnah einlesen lassen
+      // (braucht Admin-Rechte; sonst greift der geplante Scan).
+      try {
+        await subsonic.startScan();
+      } catch (_) {}
+      Future.delayed(const Duration(seconds: 4), () {
+        library.refresh();
+      });
+
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Tags gespeichert. Navidrome liest die Änderung beim nächsten '
+            'Scan ein.',
+          ),
+        ),
+      );
+      navigator.pop();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        await _showInfo(
+          'Speichern fehlgeschlagen',
+          e.toString().replaceFirst('Exception: ', ''),
+        );
+      }
+    }
+  }
+
+  Widget _field(String label, TextEditingController controller,
+      {String? helper}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: TextField(
@@ -105,6 +263,7 @@ class _TagEditorScreenState extends State<TagEditorScreen> {
         decoration: InputDecoration(
           labelText: label,
           hintText: label,
+          helperText: helper,
           border: const UnderlineInputBorder(),
         ),
       ),
@@ -125,10 +284,21 @@ class _TagEditorScreenState extends State<TagEditorScreen> {
       appBar: AppBar(
         title: const Text('Tag-Editor'),
         actions: [
-          IconButton(
-            icon: Icon(Icons.check, color: Theme.of(context).colorScheme.primary),
-            onPressed: _save,
-          ),
+          if (_saving)
+            const Padding(
+              padding: EdgeInsets.all(14),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else
+            IconButton(
+              icon: Icon(Icons.check,
+                  color: Theme.of(context).colorScheme.primary),
+              onPressed: _save,
+            ),
         ],
       ),
       body: ListView(
@@ -155,7 +325,8 @@ class _TagEditorScreenState extends State<TagEditorScreen> {
                     CircleAvatar(
                       backgroundColor: Colors.black54,
                       child: IconButton(
-                        icon: const Icon(Icons.edit, color: Colors.white, size: 18),
+                        icon: const Icon(Icons.edit,
+                            color: Colors.white, size: 18),
                         onPressed: null,
                         tooltip: 'Noch nicht verfügbar',
                       ),
@@ -164,7 +335,8 @@ class _TagEditorScreenState extends State<TagEditorScreen> {
                     CircleAvatar(
                       backgroundColor: Colors.black54,
                       child: IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.white, size: 18),
+                        icon: const Icon(Icons.delete,
+                            color: Colors.white, size: 18),
                         onPressed: null,
                         tooltip: 'Noch nicht verfügbar',
                       ),
@@ -181,7 +353,10 @@ class _TagEditorScreenState extends State<TagEditorScreen> {
               child: Text(
                 'EINGEBETTETEN SONGTEXT BEARBEITEN',
                 style: TextStyle(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.5),
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
                 ),
@@ -195,11 +370,13 @@ class _TagEditorScreenState extends State<TagEditorScreen> {
           _field('Album-Künstler', _albumArtist),
           _field('Komponist', _composer),
           _field('Genre', _genre),
-          _field('Songtexter', _lyricist),
+          _field('Songtexter', _lyricist,
+              helper: 'Wird vom Tag-Dienst noch nicht gespeichert'),
           _field('Titel-Nummer', _track),
           _field('CD-Nummer', _discNumber),
           _field('Jahr', _year),
-          _field('Kommentar', _comment),
+          _field('Kommentar', _comment,
+              helper: 'Wird vom Tag-Dienst noch nicht gespeichert'),
           const SizedBox(height: 32),
         ],
       ),

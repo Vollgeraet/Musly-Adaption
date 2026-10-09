@@ -131,6 +131,8 @@ class AuthProvider extends ChangeNotifier {
     String? clientCertificatePassword,
     String? profileName,
     String? lanUrl,
+    String? tagEditorUrl,
+    String? tagEditorApiKey,
     String serverFamily = 'subsonic',
   }) async {
     _state = AuthState.authenticating;
@@ -178,6 +180,8 @@ class AuthProvider extends ChangeNotifier {
     final config = ServerConfig(
       serverUrl: serverUrl,
       lanUrl: lanUrl,
+      tagEditorUrl: tagEditorUrl,
+      tagEditorApiKey: tagEditorApiKey,
       username: username,
       password: password,
       useLegacyAuth: useLegacyAuth,
@@ -349,6 +353,24 @@ class AuthProvider extends ChangeNotifier {
     await _storageService.saveProfile(profile);
     await _subsonicService.configure(profile);
     await _verifyConnection();
+    notifyListeners();
+  }
+
+  /// Hinterlegt URL und API-Key des Tag-Editor-Dienstes für den aktuell
+  /// verbundenen Server (und das gespeicherte Profil).
+  Future<void> updateTagEditorSettings({
+    required String url,
+    required String apiKey,
+  }) async {
+    if (_config == null) return;
+    final updated = _config!.copyWith(
+      tagEditorUrl: url.trim(),
+      tagEditorApiKey: apiKey.trim(),
+    );
+    _config = updated;
+    await _subsonicService.configure(updated);
+    await _storageService.saveServerConfig(updated);
+    await _storageService.saveProfile(updated);
     notifyListeners();
   }
 
