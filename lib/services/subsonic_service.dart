@@ -215,6 +215,17 @@ class SubsonicService {
         }
       } catch (_) {}
 
+      // Der Tag-Editor-Dienst (eigene Subdomain, gleiche eigene CA) braucht
+      // dieselbe Ausnahme wie der Hauptserver - sonst scheitert der
+      // TLS-Handshake, weil Dart nutzerinstallierten CAs nicht vertraut.
+      String? tagEditorHost;
+      try {
+        final tagUrl = _config?.normalizedTagEditorUrl;
+        if (tagUrl != null) {
+          tagEditorHost = Uri.tryParse(tagUrl)?.host;
+        }
+      } catch (_) {}
+
       HttpClient createClient() {
         HttpClient buildClient(SecurityContext? context) {
           return HttpOverrides.runWithHttpOverrides(() {
@@ -224,12 +235,14 @@ class SubsonicService {
             client.idleTimeout = const Duration(seconds: 15);
             if (allowSelfSigned) {
               client.badCertificateCallback = (cert, host, port) {
-                if (targetHost != null &&
+                final h = host.toLowerCase();
+                final isMainServer = targetHost != null &&
                     targetHost.isNotEmpty &&
-                    host.toLowerCase() == targetHost.toLowerCase()) {
-                  return true;
-                }
-                return false;
+                    h == targetHost.toLowerCase();
+                final isTagEditor = tagEditorHost != null &&
+                    tagEditorHost.isNotEmpty &&
+                    h == tagEditorHost.toLowerCase();
+                return isMainServer || isTagEditor;
               };
             }
             return client;
@@ -423,8 +436,23 @@ class SubsonicService {
             : 'Serverfehler ($status)';
         throw Exception('Tag-Editor-Fehler: $detail');
       }
+      if (status != null) {
+        throw Exception(
+            'Der Tag-Editor hat mit HTTP $status geantwortet (unerwartet). '
+            'Prüfe URL und Reverse-Proxy-Konfiguration.');
+      }
+      final cause = (e.error ?? e.message ?? '').toString();
+      if (cause.contains('HandshakeException') ||
+          cause.contains('CERTIFICATE_VERIFY_FAILED') ||
+          cause.contains('certificate')) {
+        throw Exception(
+            'Zertifikatsfehler beim Verbinden mit dem Tag-Editor. '
+            'Ist "Selbstsignierte Zertifikate erlauben" für diesen Server '
+            'aktiv? ($cause)');
+      }
       throw Exception(
-          'Tag-Editor nicht erreichbar. Prüfe URL und Netzwerk/VPN.');
+          'Tag-Editor nicht erreichbar (${e.type.name}: $cause). '
+          'Prüfe URL und Netzwerk/VPN.');
     }
   }
 
