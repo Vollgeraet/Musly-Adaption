@@ -201,7 +201,20 @@ class _TagEditorScreenState extends State<TagEditorScreen> {
       return;
     }
 
-    final path = song.path;
+    final subsonic = Provider.of<SubsonicService>(context, listen: false);
+    if (subsonic.config?.hasTagEditor != true) {
+      final configured = await _askForTagEditorSettings();
+      if (!configured || !mounted) return;
+    }
+
+    // Pfad frisch vom Server holen statt aus dem Cache: so greift eine
+    // Änderung der Navidrome-Einstellung "Report Real Path" sofort.
+    String? path = song.path;
+    try {
+      final fresh = await subsonic.fetchSongPath(song.id);
+      if (fresh != null && fresh.isNotEmpty) path = fresh;
+    } catch (_) {}
+    if (!mounted) return;
     if (path == null || path.isEmpty) {
       await _showInfo(
         'Dateipfad unbekannt',
@@ -209,12 +222,6 @@ class _TagEditorScreenState extends State<TagEditorScreen> {
             'weiß der Tag-Editor nicht, welche Datei er ändern soll.',
       );
       return;
-    }
-
-    final subsonic = Provider.of<SubsonicService>(context, listen: false);
-    if (subsonic.config?.hasTagEditor != true) {
-      final configured = await _askForTagEditorSettings();
-      if (!configured || !mounted) return;
     }
 
     final messenger = ScaffoldMessenger.of(context);

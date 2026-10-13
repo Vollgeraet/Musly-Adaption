@@ -380,6 +380,20 @@ class SubsonicService {
     return '$activeBaseUrl/rest/$endpoint?$queryString';
   }
 
+  /// Holt den aktuellen Dateipfad eines Songs frisch vom Server (statt aus
+  /// dem lokalen Cache). Navidrome liefert hier standardmäßig einen
+  /// SIMULIERTEN Pfad (Artist/Album/Titel), der nicht zur echten Datei
+  /// passt; den echten Pfad gibt es nur, wenn für den Player in Navidrome
+  /// "Report Real Path" aktiviert ist.
+  Future<String?> fetchSongPath(String songId) async {
+    final response = await _request('getSong', {'id': songId});
+    final song = response['song'];
+    if (song is Map && song['path'] != null) {
+      return song['path'].toString();
+    }
+    return null;
+  }
+
   /// Stößt einen Bibliotheks-Scan auf dem Server an (Navidrome: nur mit
   /// Admin-Rechten), damit geänderte Tags zeitnah sichtbar werden.
   Future<void> startScan() async {
@@ -427,7 +441,13 @@ class SubsonicService {
         final detail = (data is Map && data['error'] != null)
             ? data['error'].toString()
             : 'ungültige Anfrage';
-        throw Exception('Tag-Editor hat die Anfrage abgelehnt: $detail');
+        final hint = detail == 'invalid path'
+            ? '\n\nGesendeter Pfad: $relativePath\n\nNavidrome liefert '
+                'standardmäßig einen simulierten Pfad. Aktiviere in Navidrome '
+                'unter Einstellungen → Player beim Musly-Player "Report Real '
+                'Path".'
+            : '';
+        throw Exception('Tag-Editor hat die Anfrage abgelehnt: $detail$hint');
       }
       if (status != null && status >= 500) {
         final data = e.response?.data;
