@@ -201,6 +201,14 @@ class LibraryProvider extends ChangeNotifier {
 
       await _loadCachedData(loadFullLibrary: true);
 
+      // Selbstheilung: Ein abgebrochenes Neuladen kann eine unvollständige
+      // Bibliothek hinterlassen haben - dann sofort vollständig neu laden.
+      if (_libraryLooksIncomplete()) {
+        Future.delayed(const Duration(seconds: 3), () {
+          if (!_serverOfflineMode) _refreshAllDataInBackground();
+        });
+      }
+
       if (_recentAlbums.isEmpty && _cachedAllAlbums.isNotEmpty) {
         _recentAlbums = _cachedAllAlbums.take(20).toList();
       }
@@ -350,16 +358,50 @@ class LibraryProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _refreshAllDataInBackground() async {
-    if (_subsonicService.isYoutube) return;
+  int _refreshGeneration = 0;
+  int _runningRefreshGeneration = -1;
+  Future<void>? _refreshFuture;
+
+  bool get isRefreshingAll => _refreshFuture != null;
+
+  /// Lädt die komplette Server-Bibliothek neu. Anders als [refresh] bleiben
+  /// die vorhandenen Daten bis zum erfolgreichen Abschluss unangetastet:
+  /// bricht der Abruf ab (schlechte Verbindung, App wird beendet), bleibt
+  /// die bisherige Bibliothek erhalten.
+  Future<void> reloadLibrary() => _refreshAllDataInBackground();
+
+  Future<void> _refreshAllDataInBackground() {
+    if (_subsonicService.isYoutube) return Future.value();
+
+    final running = _refreshFuture;
+    if (running != null && _runningRefreshGeneration == _refreshGeneration) {
+      return running;
+    }
+
+    final generation = _refreshGeneration;
+    _runningRefreshGeneration = generation;
+    late final Future<void> future;
+    future = _doRefreshAll(generation).whenComplete(() {
+      if (identical(_refreshFuture, future)) {
+        _refreshFuture = null;
+        notifyListeners();
+      }
+    });
+    _refreshFuture = future;
+    notifyListeners();
+    return future;
+  }
+
+  Future<void> _doRefreshAll(int generation) async {
     try {
       const pageSize = 500;
       int offset = 0;
       final List<Album> allAlbums = [];
-      final seenSongIds = <String>{};
+      final Map<String, Song> songsById = {};
+      int failedAlbums = 0;
 
-      await _db.clearServerData();
-
+      // 1) Alles zuerst im Speicher sammeln - die Datenbank wird erst am
+      //    Ende ersetzt, wenn der Abruf vollständig und plausibel ist.
       while (true) {
         final page = await _subsonicService.getAlbumList(
           type: 'alphabeticalByName',
@@ -368,7 +410,6 @@ class LibraryProvider extends ChangeNotifier {
         );
         if (page.isEmpty) break;
         allAlbums.addAll(page);
-        await _db.insertAlbumsBatch(page);
         if (page.length < pageSize) break;
         offset += pageSize;
       }
@@ -377,42 +418,137 @@ class LibraryProvider extends ChangeNotifier {
         try {
           final allSongs = await _subsonicService.getAllSongs();
           for (final song in allSongs) {
-            seenSongIds.add(song.id);
+            songsById[song.id] = song;
           }
-          await _db.insertSongsBatch(allSongs);
         } catch (_) {}
       }
 
-      if (seenSongIds.isEmpty) {
-        final albumCount = await _db.getAlbumCount();
-        const albumBatchSize = 50;
-        for (int batchOffset = 0;
-            batchOffset < albumCount;
-            batchOffset += albumBatchSize) {
-          final albums = await _db.getAlbumsPaginated(
-            limit: albumBatchSize,
-            offset: batchOffset,
-          );
-          for (final album in albums) {
+      if (songsById.isEmpty) {
+        for (final album in allAlbums) {
+          List<Song>? albumSongs;
+          for (int attempt = 0; attempt < 3 && albumSongs == null; attempt++) {
             try {
-              final albumSongs = await _subsonicService.getAlbumSongs(album.id);
-              final newSongs =
-                  albumSongs.where((song) => seenSongIds.add(song.id)).toList();
-              if (newSongs.isNotEmpty) {
-                await _db.insertSongsBatch(newSongs);
-              }
-            } catch (_) {}
+              albumSongs = await _subsonicService.getAlbumSongs(album.id);
+            } catch (_) {
+              await Future.delayed(Duration(milliseconds: 500 * (attempt + 1)));
+            }
+          }
+          if (albumSongs == null) {
+            failedAlbums++;
+            continue;
+          }
+          for (final song in albumSongs) {
+            songsById.putIfAbsent(song.id, () => song);
           }
         }
       }
 
+      // Wurde die Anmeldung/der Server inzwischen gewechselt, gehören diese
+      // Daten nicht mehr zum aktuellen Server.
+      if (generation != _refreshGeneration) return;
+
+      // 2) Plausibilitätsprüfung: niemals eine bestehende Bibliothek durch
+      //    ein leeres oder offensichtlich unvollständiges Ergebnis ersetzen.
+      final previousServerSongs =
+          _cachedAllSongs.where((s) => !s.isLocal).length;
+      final fetched = songsById.length;
+      final looksTruncated = failedAlbums > 0 &&
+          previousServerSongs >= 10 &&
+          fetched < previousServerSongs * 0.8;
+      if (allAlbums.isEmpty || fetched == 0 || looksTruncated) {
+        debugPrint(
+            '[Library] Reload verworfen (Alben: ${allAlbums.length}, Songs: $fetched, fehlgeschlagene Alben: $failedAlbums) - bisherige Daten bleiben erhalten.');
+        return;
+      }
+
+      // 3) Erst jetzt die Daten ersetzen.
+      await _db.clearServerData();
+      await _db.insertAlbumsBatch(allAlbums);
+      await _db.insertSongsBatch(songsById.values.toList());
+
       _cachedAllAlbums = allAlbums;
       _cachedAllSongs = await _db.getAllSongs();
       _lastCacheUpdate = DateTime.now();
-
       await _saveCachedData();
+
+      if (failedAlbums > 0) {
+        // Teilweise unvollständig: beim nächsten Start erneut versuchen.
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setInt(_lastUpdateKey, 0);
+          _lastCacheUpdate = null;
+        } catch (_) {}
+      }
+
+      _songsRevision++;
       notifyListeners();
+    } catch (e) {
+      debugPrint('[Library] Reload fehlgeschlagen: $e');
+    }
+  }
+
+  /// Wirkt die Bibliothek unvollständig (z. B. nach einem abgebrochenen
+  /// Neuladen)? Jedes Album enthält mindestens einen Song - gibt es weniger
+  /// Songs als Alben (oder fast gar keine), ist der Cache unbrauchbar.
+  bool _libraryLooksIncomplete() {
+    if (_subsonicService.isYoutube || _serverOfflineMode || _localOnlyMode) {
+      return false;
+    }
+    final serverSongs = _cachedAllSongs.where((s) => !s.isLocal).length;
+    final serverAlbums = _cachedAllAlbums.where((a) => !a.isLocal).length;
+    return serverSongs < 10 || serverSongs < serverAlbums;
+  }
+
+  // ---- Sofort sichtbare Tag-Änderungen -----------------------------------
+
+  int _songsRevision = 0;
+  final Map<String, Song> _songOverrides = {};
+
+  /// Zählt hoch, wenn sich Songdaten geändert haben (Tag-Bearbeitung,
+  /// neu geladene Bibliothek). Listen vergleichen diesen Wert, um sich
+  /// neu aufzubauen.
+  int get songsRevision => _songsRevision;
+
+  Song _applyEdit(Song base, Song edited) => base.copyWith(
+        title: edited.title,
+        artist: edited.artist,
+        album: edited.album,
+        genre: edited.genre,
+        year: edited.year,
+        track: edited.track,
+        clearArtistParticipants: edited.artist != base.artist,
+      );
+
+  /// Merkt sich geänderte Tags eines Songs, damit alle Listen ihn sofort mit
+  /// den neuen Werten zeigen - ohne auf den nächsten Navidrome-Scan oder ein
+  /// komplettes Neuladen der Bibliothek zu warten.
+  Future<void> registerSongEdit(Song edited) async {
+    _songOverrides[edited.id] = edited;
+
+    Song patch(Song s) => s.id == edited.id ? _applyEdit(s, edited) : s;
+    _cachedAllSongs = _cachedAllSongs.map(patch).toList();
+    _randomSongs = _randomSongs.map(patch).toList();
+    _songsRevision++;
+    notifyListeners();
+
+    try {
+      for (final s in _cachedAllSongs) {
+        if (s.id == edited.id) {
+          await _db.insertOrUpdateSong(s);
+          break;
+        }
+      }
     } catch (_) {}
+  }
+
+  /// Wendet gemerkte Tag-Änderungen auf eine (ggf. veraltete) Songliste an.
+  List<Song> withEdits(List<Song> songs) {
+    if (_songOverrides.isEmpty) return songs;
+    return songs
+        .map((s) => _songOverrides.containsKey(s.id)
+            ? _applyEdit(s, _songOverrides[s.id]!)
+            : s)
+        .toList();
   }
 
   Future<void> _saveCachedData() async {
@@ -589,6 +725,7 @@ class LibraryProvider extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
+    _refreshGeneration++;
     _isInitialized = false;
     _lastCacheUpdate = null;
     _artists = [];

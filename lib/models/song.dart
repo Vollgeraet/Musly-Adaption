@@ -152,6 +152,7 @@ class Song {
     bool? starred,
     int? userRating,
     bool? isLocal,
+    bool clearArtistParticipants = false,
     double? replayGainTrackGain,
     double? replayGainAlbumGain,
     double? replayGainTrackPeak,
@@ -184,7 +185,9 @@ class Song {
       replayGainAlbumGain: replayGainAlbumGain ?? this.replayGainAlbumGain,
       replayGainTrackPeak: replayGainTrackPeak ?? this.replayGainTrackPeak,
       replayGainAlbumPeak: replayGainAlbumPeak ?? this.replayGainAlbumPeak,
-      artistParticipants: artistParticipants ?? this.artistParticipants,
+      artistParticipants: clearArtistParticipants
+          ? null
+          : (artistParticipants ?? this.artistParticipants),
       created: created ?? this.created,
       hasDolbyAtmos: hasDolbyAtmos ?? this.hasDolbyAtmos,
     );

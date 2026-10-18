@@ -61,6 +61,7 @@ class _SongCollectionScreenState extends State<SongCollectionScreen> {
   List<Song> _songs = [];
   List<Song> _filteredSongs = [];
   bool _isLoading = true;
+  int _seenRevision = -1;
   String? _error;
   String _searchQuery = '';
   SongSortOption _currentSort = SongSortOption.titleAsc;
@@ -295,6 +296,21 @@ class _SongCollectionScreenState extends State<SongCollectionScreen> {
     );
   }
 
+  Future<void> _reloadFromServer() async {
+    final library = Provider.of<LibraryProvider>(context, listen: false);
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Bibliothek wird neu geladen ...')),
+    );
+    await library.reloadLibrary();
+    if (!mounted) return;
+    setState(() {
+      _songs = library.withEdits(List.from(library.cachedAllSongs));
+      _applySortAndFilter();
+    });
+    messenger.hideCurrentSnackBar();
+  }
+
   void _showMoreMenu(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dividerColor = isDark ? AppTheme.darkDivider : AppTheme.lightDivider;
@@ -319,6 +335,14 @@ class _SongCollectionScreenState extends State<SongCollectionScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const SizedBox(height: 8),
+                      _MenuTile(
+                        icon: Icons.refresh_rounded,
+                        title: 'Neu laden',
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          _reloadFromServer();
+                        },
+                      ),
                       _MenuTile(
                         icon: Icons.add_to_home_screen_rounded,
                         title: 'Verknüpfung auf Homescreen',
@@ -434,6 +458,24 @@ class _SongCollectionScreenState extends State<SongCollectionScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    // Songdaten haben sich geändert (Tag-Bearbeitung, neu geladene
+    // Bibliothek): Liste neu aus dem Provider aufbauen.
+    final revision =
+        context.select<LibraryProvider, int>((l) => l.songsRevision);
+    if (revision != _seenRevision) {
+      _seenRevision = revision;
+      final library = Provider.of<LibraryProvider>(context, listen: false);
+      if (widget.type == SongCollectionType.allSongs) {
+        if (!_isLoading) {
+          _songs = library.withEdits(List.from(library.cachedAllSongs));
+          _applySortAndFilter();
+        }
+      } else {
+        _songs = library.withEdits(_songs);
+        _applySortAndFilter();
+      }
+    }
+
     final title = _getTitle(context);
     final totalDuration = _calculateTotalDuration();
     final isAllSongs = widget.type == SongCollectionType.allSongs;

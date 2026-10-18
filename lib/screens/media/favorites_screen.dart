@@ -4,6 +4,7 @@ import '../../models/models.dart';
 import '../../services/subsonic_service.dart';
 import '../../services/offline_service.dart';
 import '../../services/recommendation_service.dart';
+import '../../providers/library_provider.dart';
 import '../../providers/player_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/navigation_helper.dart';
@@ -131,6 +132,14 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       ListMenuTile(
+                        icon: Icons.refresh_rounded,
+                        title: 'Neu laden',
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          _loadFavorites();
+                        },
+                      ),
+                      ListMenuTile(
                         icon: Icons.play_arrow_rounded,
                         title: 'Abspielen',
                         onTap: () {
@@ -232,9 +241,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     final l10n = AppLocalizations.of(context)!;
     final recProfiles =
         Provider.of<RecommendationService>(context, listen: false).profiles;
+    context.select<LibraryProvider, int>((l) => l.songsRevision);
+    final favoriteSongs = Provider.of<LibraryProvider>(context, listen: false)
+        .withEdits(_favoriteSongs);
     final searchedSongs = _searchQuery.isEmpty
-        ? _favoriteSongs
-        : _favoriteSongs
+        ? favoriteSongs
+        : favoriteSongs
             .where((s) =>
                 s.title.toLowerCase().contains(_searchQuery) ||
                 (s.artist?.toLowerCase().contains(_searchQuery) ?? false))
@@ -306,8 +318,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                               color: Colors.white),
                         ),
                         onDismissed: (_) {
-                          final originalIndex =
-                              _favoriteSongs.indexOf(song);
+                          final originalIndex = _favoriteSongs
+                              .indexWhere((s) => s.id == song.id);
                           if (originalIndex != -1) {
                             _removeFavorite(context, song, originalIndex);
                           }

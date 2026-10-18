@@ -707,7 +707,7 @@ class _AuthenticatingScreenState extends State<_AuthenticatingScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 32.0),
                 child: Text(
-                  'La connessione ci sta mettendo un po\'...',
+                  'Die Verbindung dauert länger als üblich ...',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: Colors.grey,
                   ),

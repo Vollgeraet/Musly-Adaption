@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/models.dart';
+import '../../providers/library_provider.dart';
 import '../../providers/player_provider.dart';
 import '../../services/recommendation_service.dart';
 import '../../theme/app_theme.dart';
@@ -32,12 +33,14 @@ class AllSongsScreen extends StatefulWidget {
 
 class _AllSongsScreenState extends State<AllSongsScreen> {
   late SongSortOption _currentSort;
+  late List<Song> _songs;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
+    _songs = widget.songs;
     _currentSort = widget.sortByRecentlyAdded
         ? SongSortOption.addedDesc
         : SongSortOption.titleAsc;
@@ -69,6 +72,18 @@ class _AllSongsScreenState extends State<AllSongsScreen> {
     player.playSong(song, playlist: songs, startIndex: index);
   }
 
+  Future<void> _reload() async {
+    final library = Provider.of<LibraryProvider>(context, listen: false);
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Bibliothek wird neu geladen ...')),
+    );
+    await library.reloadLibrary();
+    if (!mounted) return;
+    setState(() => _songs = List.from(library.cachedAllSongs));
+    messenger.hideCurrentSnackBar();
+  }
+
   void _showMoreMenu(BuildContext context, List<Song> songs) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dividerColor = isDark ? AppTheme.darkDivider : AppTheme.lightDivider;
@@ -92,6 +107,14 @@ class _AllSongsScreenState extends State<AllSongsScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      ListMenuTile(
+                        icon: Icons.refresh_rounded,
+                        title: 'Neu laden',
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          _reload();
+                        },
+                      ),
                       ListMenuTile(
                         icon: Icons.add_to_home_screen_rounded,
                         title: 'Verknüpfung auf Homescreen',
@@ -192,7 +215,9 @@ class _AllSongsScreenState extends State<AllSongsScreen> {
   Widget build(BuildContext context) {
     final recProfiles =
         Provider.of<RecommendationService>(context, listen: false).profiles;
-    final baseSongs = widget.songs;
+    context.select<LibraryProvider, int>((l) => l.songsRevision);
+    final baseSongs = Provider.of<LibraryProvider>(context, listen: false)
+        .withEdits(_songs);
     final searchedSongs = _searchQuery.isEmpty
         ? baseSongs
         : baseSongs

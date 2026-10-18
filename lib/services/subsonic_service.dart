@@ -380,6 +380,34 @@ class SubsonicService {
     return '$activeBaseUrl/rest/$endpoint?$queryString';
   }
 
+  /// Holt einen einzelnen Song frisch vom Server.
+  Future<Song?> fetchSong(String songId) async {
+    final response = await _request('getSong', {'id': songId});
+    final song = response['song'];
+    if (song is Map) {
+      return Song.fromJson(Map<String, dynamic>.from(song));
+    }
+    return null;
+  }
+
+  /// Startet einen vollständigen Scan (ein Schnell-Scan erkennt direkt in der
+  /// Datei geänderte Tags nicht zuverlässig) und wartet, bis er fertig ist.
+  /// Gibt true zurück, wenn der Scan innerhalb von [timeout] abgeschlossen
+  /// wurde. Braucht in Navidrome Admin-Rechte.
+  Future<bool> startScanAndWait({
+    Duration timeout = const Duration(seconds: 90),
+  }) async {
+    await _request('startScan', {'fullScan': 'true'});
+    final deadline = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(deadline)) {
+      await Future.delayed(const Duration(seconds: 2));
+      final response = await _request('getScanStatus');
+      final status = response['scanStatus'];
+      if (status is Map && status['scanning'] != true) return true;
+    }
+    return false;
+  }
+
   /// Holt den aktuellen Dateipfad eines Songs frisch vom Server (statt aus
   /// dem lokalen Cache). Navidrome liefert hier standardmäßig einen
   /// SIMULIERTEN Pfad (Artist/Album/Titel), der nicht zur echten Datei

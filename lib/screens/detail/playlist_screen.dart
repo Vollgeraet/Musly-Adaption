@@ -7,6 +7,7 @@ import 'package:musly/services/subsonic_service.dart';
 import 'package:musly/services/offline_service.dart';
 import 'package:musly/services/favorite_playlists_service.dart';
 import 'package:musly/services/playlist_cover_service.dart';
+import 'package:musly/providers/library_provider.dart';
 import 'package:musly/services/recommendation_service.dart';
 import 'package:musly/theme/app_theme.dart';
 import 'package:musly/widgets/widgets.dart';
@@ -156,6 +157,14 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      ListMenuTile(
+                        icon: Icons.refresh_rounded,
+                        title: 'Neu laden',
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          _loadPlaylist();
+                        },
+                      ),
                       ListMenuTile(
                         icon: Icons.add_to_home_screen_rounded,
                         title: 'Verknüpfung auf Homescreen',
@@ -727,7 +736,9 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
 
     final recProfiles =
         Provider.of<RecommendationService>(context, listen: false).profiles;
-    final baseSongs = _playlist!.songs ?? [];
+    context.select<LibraryProvider, int>((l) => l.songsRevision);
+    final baseSongs = Provider.of<LibraryProvider>(context, listen: false)
+        .withEdits(_playlist!.songs ?? []);
     final searchedSongs = _searchQuery.isEmpty
         ? baseSongs
         : baseSongs
@@ -909,8 +920,8 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                               ),
                             ),
                             onDismissed: (_) {
-                              final originalIndex =
-                                  _playlist!.songs!.indexOf(song);
+                              final originalIndex = _playlist!.songs!
+                                  .indexWhere((s) => s.id == song.id);
                               if (originalIndex != -1) {
                                 _removeSongFromPlaylist(originalIndex);
                               }
