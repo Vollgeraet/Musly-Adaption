@@ -97,7 +97,7 @@ class _PlaybackProgressSliderState extends State<PlaybackProgressSlider> {
               ),
             ),
             Text(
-              "-${_formatDuration(widget.duration - Duration(milliseconds: currentDuration.toInt()))}",
+              _formatDuration(widget.duration),
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.7),
                 fontSize: 12,

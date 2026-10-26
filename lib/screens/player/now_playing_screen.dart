@@ -204,14 +204,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     super.dispose();
   }
 
-  void _onVerticalDragUpdate(DragUpdateDetails details) {}
-
-  void _onVerticalDragEnd(DragEndDetails details) {
-    if (details.primaryVelocity != null && details.primaryVelocity! > 300) {
-      _closeOrSwitchTab();
-    }
-  }
-
   void _closeOrSwitchTab() {
     if (widget.embedded) {
       NavigationHelper.switchToTab(0);
@@ -245,8 +237,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       child: Scaffold(
         backgroundColor: Colors.black,
         body: GestureDetector(
-          onVerticalDragUpdate: isLandscape ? null : _onVerticalDragUpdate,
-          onVerticalDragEnd: isLandscape ? null : _onVerticalDragEnd,
           child: Stack(
             children: [
               Positioned.fill(
@@ -309,24 +299,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   ),
                 ),
               ),
-              if (!isLandscape)
-                Positioned(
-                  top: effectiveTopPadding > 0
-                      ? effectiveTopPadding + 8.0
-                      : 16.0,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: Container(
-                      width: 36,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.4),
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                  ),
-                ),
               Positioned(
                 top: isLandscape
                     ? (effectiveTopPadding > 0
