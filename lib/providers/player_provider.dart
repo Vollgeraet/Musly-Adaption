@@ -1787,6 +1787,11 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
               startIndex ?? playlist.indexWhere((s) => s.id == song.id);
           if (targetIndex != -1 && targetIndex != _currentIndex) {
             await _audioPlayer.seek(Duration.zero, index: targetIndex);
+            // Wer einen Song antippt, will ihn hören - auch wenn die
+            // Wiedergabe vorher pausiert war.
+            if (!_isPlaying) {
+              await play();
+            }
             return;
           } else if (targetIndex == _currentIndex && !_isPlaying) {
             await play();
@@ -2838,6 +2843,39 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       debugPrint('UPnP setVolume error: $e');
     } finally {
       _upnpVolumeWriteInProgress = false;
+    }
+  }
+
+  bool _previewHold = false;
+  StreamSubscription<bool>? _previewHoldSub;
+
+  /// Hält die Hauptwiedergabe an, solange die Song-Vorschau offen ist.
+  /// Jeder Versuch, die Hauptwiedergabe in dieser Zeit zu starten (auch
+  /// durch Audiofokus-Ereignisse oder Medientasten), wird sofort wieder
+  /// pausiert. Gibt zurück, ob gerade etwas gespielt hat - dann sollte die
+  /// Wiedergabe mit [endPreviewHold] fortgesetzt werden.
+  Future<bool> beginPreviewHold() async {
+    final wasPlaying = _isPlaying || _audioPlayer.playing;
+    _previewHold = true;
+    await _previewHoldSub?.cancel();
+    _previewHoldSub = _audioPlayer.playingStream.listen((playing) {
+      if (_previewHold && playing) {
+        _audioPlayer.pause();
+      }
+    });
+    if (wasPlaying) {
+      await _audioPlayer.pause();
+    }
+    return wasPlaying;
+  }
+
+  /// Beendet den Haltemodus; mit [resume] läuft die Hauptwiedergabe weiter.
+  Future<void> endPreviewHold({required bool resume}) async {
+    _previewHold = false;
+    await _previewHoldSub?.cancel();
+    _previewHoldSub = null;
+    if (resume) {
+      unawaited(play());
     }
   }
 

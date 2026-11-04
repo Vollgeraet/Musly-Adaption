@@ -359,8 +359,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       }
     }
 
-    if ((_selectedFilter == null && !isYoutube) ||
-        _selectedFilter == 'Albums') {
+    if (_selectedFilter == 'Albums') {
       var albums = libraryProvider.recentAlbums;
       albums = _sortList(albums, (a) => a.name);
       for (final a in albums) {
@@ -376,8 +375,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       }
     }
 
-    if ((_selectedFilter == null && !isYoutube) ||
-        _selectedFilter == 'Artists') {
+    if (_selectedFilter == 'Artists') {
       var artists = libraryProvider.artists;
       artists = _sortList(artists, (a) => a.name);
       for (final art in artists) {

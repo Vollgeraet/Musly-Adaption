@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
@@ -12,9 +14,11 @@ import '../common/floating_panel.dart';
 /// - fügt NICHT zur Warteschlange hinzu
 /// - wechselt NICHT in die Player-Ansicht
 /// - ersetzt NICHT den aktuell laufenden Song
+///
 /// Läuft gerade ein Song, wird er beim Öffnen der Vorschau pausiert und
-/// beim Schließen (X, Zurück, oder Vorschau endet von selbst) an der
-/// gleichen Stelle fortgesetzt.
+/// bleibt pausiert - auch wenn die Vorschau selbst pausiert wird - bis das
+/// Fenster geschlossen ist (X, Zurück-Taste oder Ende der Vorschau). Erst
+/// dann läuft der Song an der gleichen Stelle weiter.
 class SongPreviewPanel extends StatefulWidget {
   final Song song;
 
@@ -33,8 +37,21 @@ class SongPreviewPanel extends StatefulWidget {
 }
 
 class _SongPreviewPanelState extends State<SongPreviewPanel> {
-  final AudioPlayer _previewPlayer = AudioPlayer();
-  bool _didPauseMainPlayer = false;
+  // Eigener Player ohne Audiofokus-/Sitzungsverwaltung: Der Haupt-Player
+  // läuft genauso und die Sitzung wird unten einmal manuell aktiviert.
+  // So löst die Vorschau (Play/Pause) keine Audiofokus-Ereignisse aus, die
+  // den Hauptsong versehentlich fortsetzen würden.
+  final AudioPlayer _previewPlayer = AudioPlayer(
+    handleInterruptions: false,
+    handleAudioSessionActivation: false,
+  );
+  late final PlayerProvider _player =
+      Provider.of<PlayerProvider>(context, listen: false);
+
+  StreamSubscription<PlayerState>? _stateSub;
+  bool _holdReady = false;
+  bool _wasMainPlaying = false;
+  bool _released = false;
   bool _closing = false;
   bool _isLoading = true;
 
@@ -45,44 +62,64 @@ class _SongPreviewPanelState extends State<SongPreviewPanel> {
   }
 
   Future<void> _start() async {
-    final playerProvider = Provider.of<PlayerProvider>(context, listen: false);
+    _wasMainPlaying = await _player.beginPreviewHold();
+    _holdReady = true;
 
-    if (playerProvider.isPlaying) {
-      await playerProvider.pause();
-      _didPauseMainPlayer = true;
+    // Wurde das Fenster schon geschlossen, bevor der Haltemodus stand:
+    // sofort wieder freigeben.
+    if (_released) {
+      await _player.endPreviewHold(resume: _wasMainPlaying);
+      return;
     }
 
     try {
-      final source = await playerProvider.buildAudioSourceForSong(widget.song);
-      await _previewPlayer.setAudioSource(source);
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      await _previewPlayer.play();
+      final session = await AudioSession.instance;
+      await session.setActive(true);
+    } catch (_) {}
 
-      _previewPlayer.playerStateStream.listen((state) {
+    try {
+      final source = await _player.buildAudioSourceForSong(widget.song);
+      await _previewPlayer.setAudioSource(source);
+      if (!mounted || _released) return;
+      setState(() => _isLoading = false);
+
+      // Listener VOR dem Start registrieren; play() liefert sein Future
+      // erst, wenn die Wiedergabe endet, darf also nicht abgewartet werden.
+      _stateSub = _previewPlayer.playerStateStream.listen((state) {
         if (state.processingState == ProcessingState.completed) {
           _close();
         }
       });
+      unawaited(_previewPlayer.play());
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _close() async {
+  /// Schließt das Fenster sofort und räumt danach im Hintergrund auf.
+  void _close() {
     if (_closing) return;
     _closing = true;
-    await _previewPlayer.stop();
-    if (_didPauseMainPlayer && mounted) {
-      final playerProvider =
-          Provider.of<PlayerProvider>(context, listen: false);
-      await playerProvider.play();
+    final navigator = Navigator.of(context);
+    navigator.pop();
+    _release();
+  }
+
+  /// Stoppt die Vorschau und gibt die Hauptwiedergabe wieder frei
+  /// (genau einmal, egal auf welchem Weg das Fenster verschwindet).
+  void _release() {
+    if (_released) return;
+    _released = true;
+    _stateSub?.cancel();
+    unawaited(_previewPlayer.stop());
+    if (_holdReady) {
+      unawaited(_player.endPreviewHold(resume: _wasMainPlaying));
     }
-    if (mounted) Navigator.of(context).pop();
   }
 
   @override
   void dispose() {
+    _release();
     _previewPlayer.dispose();
     super.dispose();
   }
@@ -91,6 +128,14 @@ class _SongPreviewPanelState extends State<SongPreviewPanel> {
     final m = d.inMinutes;
     final s = (d.inSeconds % 60).toString().padLeft(2, '0');
     return '$m:$s';
+  }
+
+  void _togglePlay(bool playing) {
+    if (playing) {
+      _previewPlayer.pause();
+    } else {
+      unawaited(_previewPlayer.play());
+    }
   }
 
   @override
@@ -129,23 +174,16 @@ class _SongPreviewPanelState extends State<SongPreviewPanel> {
                               : Icons.play_circle_fill_rounded,
                           size: 28,
                         ),
-                        onPressed: _isLoading
-                            ? null
-                            : () {
-                                if (playing) {
-                                  _previewPlayer.pause();
-                                } else {
-                                  _previewPlayer.play();
-                                }
-                              },
+                        onPressed:
+                            _isLoading ? null : () => _togglePlay(playing),
                       );
                     },
                   ),
                   const Expanded(
                     child: Text(
                       'Vorschau',
-                      style: TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ),
                   IconButton(
@@ -201,6 +239,9 @@ class _SongPreviewPanelState extends State<SongPreviewPanel> {
                     stream: _previewPlayer.positionStream,
                     builder: (context, posSnap) {
                       final position = posSnap.data ?? Duration.zero;
+                      final maxMs = duration.inMilliseconds == 0
+                          ? 1
+                          : duration.inMilliseconds;
                       return Column(
                         children: [
                           Align(
@@ -224,33 +265,20 @@ class _SongPreviewPanelState extends State<SongPreviewPanel> {
                                         : Icons.play_arrow_rounded),
                                     onPressed: _isLoading
                                         ? null
-                                        : () {
-                                            if (playing) {
-                                              _previewPlayer.pause();
-                                            } else {
-                                              _previewPlayer.play();
-                                            }
-                                          },
+                                        : () => _togglePlay(playing),
                                   );
                                 },
                               ),
                               Expanded(
                                 child: Slider(
                                   value: position.inMilliseconds
-                                      .clamp(
-                                          0,
-                                          duration.inMilliseconds == 0
-                                              ? 1
-                                              : duration.inMilliseconds)
+                                      .clamp(0, maxMs)
                                       .toDouble(),
-                                  max: duration.inMilliseconds == 0
-                                      ? 1
-                                      : duration.inMilliseconds.toDouble(),
+                                  max: maxMs.toDouble(),
                                   onChanged: _isLoading
                                       ? null
-                                      : (val) => _previewPlayer
-                                          .seek(Duration(
-                                              milliseconds: val.round())),
+                                      : (val) => _previewPlayer.seek(
+                                          Duration(milliseconds: val.round())),
                                 ),
                               ),
                             ],
