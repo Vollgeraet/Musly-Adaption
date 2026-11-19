@@ -47,6 +47,11 @@ class ReleaseInfo {
 class UpdateService {
   static const String currentVersion = '2.0.2';
 
+  /// Die Update-Prüfung ist in dieser angepassten Version bewusst aus: Ein
+  /// "Update" würde die Original-App ohne die eigenen Änderungen
+  /// installieren. Auf true setzen, um die Prüfung wieder zu aktivieren.
+  static const bool updateCheckEnabled = false;
+
   static const String _apiUrl =
       'https://api.github.com/repos/dddevid/Musly/releases/latest';
 
@@ -62,6 +67,7 @@ class UpdateService {
   );
 
   static Future<ReleaseInfo?> checkForUpdate() async {
+    if (!updateCheckEnabled) return null;
     try {
       final response = await _dio.get<Map<String, dynamic>>(_apiUrl);
       final data = response.data;
