@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -18,7 +20,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "com.devid.musly"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36 //flutter.compileSdkVersion <- das war vor dem spezifischen wert
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -26,8 +28,15 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
+    /*kotlinOptions {
         jvmTarget = JavaVersion.VERSION_17.toString()
+    }*/
+
+    // Neuer Block für die Kotlin-Konfiguration (außerhalb von android)
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
     }
 
     defaultConfig {
@@ -75,7 +84,7 @@ android {
 chaquopy {
     defaultConfig {
         version = "3.11"
-        buildPython = "/home/luca/chaquopy-build-venv/bin/python"
+        buildPython = listOf("/home/luca/chaquopy-build-venv/bin/python")
         pip {
             install("yt-dlp")
         }

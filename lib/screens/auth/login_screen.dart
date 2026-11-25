@@ -297,16 +297,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _pickClientCertificate() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['p12', 'pfx', 'pem'],
         dialogTitle: 'Select Client Certificate',
       );
-      if (result != null && result.files.single.path != null) {
-        setState(() {
-          _clientCertificatePath = result.files.single.path;
-          _clientCertificateName = result.files.single.name;
-        });
+      if (result.isNotEmpty && result.first.path != null) {
+          _clientCertificatePath = result.first.path;
+          _clientCertificateName = result.first.name;
       }
     } catch (e) {
       if (mounted) {
@@ -327,17 +325,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _pickCertificateFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pem', 'crt', 'cer', 'p12', 'pfx', 'der'],
         dialogTitle: 'Select TLS/SSL Certificate',
       );
 
-      if (result != null && result.files.single.path != null) {
-        setState(() {
-          _customCertificatePath = result.files.single.path;
-          _customCertificateName = result.files.single.name;
-        });
+      if (result.isNotEmpty && result.first.path != null) {
+          _customCertificatePath = result.first.path;
+          _customCertificateName = result.first.name;
       }
     } catch (e) {
       if (mounted) {

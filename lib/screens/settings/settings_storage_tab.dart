@@ -600,7 +600,7 @@ class _SettingsStorageTabState extends State<SettingsStorageTab> {
 
   Future<void> _pickCustomDownloadDirectory() async {
     try {
-      final selectedDirectory = await FilePicker.platform.getDirectoryPath();
+      final selectedDirectory = await FilePicker.getDirectoryPath();
       if (selectedDirectory != null && selectedDirectory.isNotEmpty) {
         await _offlineService.setCustomDownloadPath(selectedDirectory);
         if (mounted) setState(() {});

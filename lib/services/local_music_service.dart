@@ -196,7 +196,7 @@ class LocalMusicService extends ChangeNotifier {
   Future<String?> pickMusicDirectory() async {
     if (Platform.isAndroid || Platform.isIOS) {
       try {
-        final result = await FilePicker.platform.getDirectoryPath(
+        final result = await FilePicker.getDirectoryPath(
           dialogTitle: 'Select Music Folder',
         );
         if (result != null) {
@@ -215,7 +215,7 @@ class LocalMusicService extends ChangeNotifier {
   Future<int> pickAndAddFiles() async {
     if (!Platform.isIOS) return 0;
 
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: [
         'mp3',
@@ -227,12 +227,12 @@ class LocalMusicService extends ChangeNotifier {
         'opus',
         'wma'
       ],
-      allowMultiple: true,
-      withData: false,
-      withReadStream: false,
+      //allowMultiple: true,
+      //withData: false,
+      //withReadStream: false,
     );
 
-    if (result == null || result.files.isEmpty) return 0;
+    if (result.isEmpty) return 0;
 
     final docsDir = await getApplicationDocumentsDirectory();
     final musicDir = Directory('${docsDir.path}/Music');
@@ -240,7 +240,7 @@ class LocalMusicService extends ChangeNotifier {
 
     final before = _songs.length;
 
-    for (final pf in result.files) {
+    for (final pf in result) {
       final srcPath = pf.path;
       if (srcPath == null) continue;
       final srcFile = File(srcPath);

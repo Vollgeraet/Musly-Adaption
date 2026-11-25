@@ -49,6 +49,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+android/build/
 
 # Fastlane
 **/fastlane/report.xml
@@ -58,3 +59,8 @@ app.*.map.json
 **/fastlane/README.md
 .bundle/
 vendor/bundle/
+
+
+.envrc
+.direnv/
+.vscode/

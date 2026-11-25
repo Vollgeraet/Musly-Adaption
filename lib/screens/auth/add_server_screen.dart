@@ -73,15 +73,13 @@ class _AddServerScreenState extends State<AddServerScreen> {
 
   Future<void> _pickCustomCertificate() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['crt', 'cer', 'pem', 'der'],
       );
-      if (result != null && result.files.single.path != null) {
-        setState(() {
-          _customCertPath = result.files.single.path;
-          _customCertName = result.files.single.name;
-        });
+      if (result.isNotEmpty && result.first.path != null) {
+          _customCertPath = result.first.path;
+          _customCertName = result.first.name;
       }
     } catch (e) {
       debugPrint('Error picking certificate: $e');
@@ -90,15 +88,13 @@ class _AddServerScreenState extends State<AddServerScreen> {
 
   Future<void> _pickClientCertificate() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['p12', 'pfx'],
       );
-      if (result != null && result.files.single.path != null) {
-        setState(() {
-          _clientCertPath = result.files.single.path;
-          _clientCertName = result.files.single.name;
-        });
+      if (result.isNotEmpty && result.first.path != null) {
+          _clientCertPath = result.first.path;
+          _clientCertName = result.first.name;
       }
     } catch (e) {
       debugPrint('Error picking client certificate: $e');
