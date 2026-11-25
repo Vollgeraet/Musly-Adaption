@@ -58,3 +58,4 @@ app.*.map.json
 **/fastlane/README.md
 .bundle/
 vendor/bundle/
+android/build/
